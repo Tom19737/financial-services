@@ -1,0 +1,33 @@
+# 秘密情報(管理者指示によりコミット禁止)
+.env
+.env.*
+*.pem
+*.secret
+*.key
+*.p12
+*.pfx
+credentials*.json
+
+# Claude Code ローカル状態(.claudeフォルダはコミットしない方針)
+.claude/
+.claude/settings.local.json
+
+# 一時/作業ファイル
+*.tmp
+.tmp/
+*.log
+
+# OS / エディタ
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# 生成物(分析アウトプットの作業ディレクトリ。必要に応じて調整)
+output/
+artifacts/
+*.xlsx#
+~$*.xlsx
+~$*.pptx
+~$*.docx
