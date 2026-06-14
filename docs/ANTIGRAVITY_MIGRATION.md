@@ -27,10 +27,11 @@
 
 ### クローン手順
 ```bash
-git clone <このリポジトリのURL> stock-research
+git clone https://github.com/Tomohiro-Uchida-jsr/financial-services.git stock-research
 cd stock-research
 # Antigravity でこのフォルダを開くだけ。セットアップ不要。
 ```
+（リポジトリは private。クローンには対象アカウントのアクセス権／認証が必要。）
 
 ## クローンだけで完了しない唯一の例外：MCP
 
