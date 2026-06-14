@@ -781,3 +781,14 @@ A successful initiation report workflow should:
 
 **Output quality**: Institutional (JPMorgan/Goldman/Morgan Stanley level)
 **Use case**: First-time comprehensive coverage of a company
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 一次情報 = **有価証券報告書／統合報告書／決算短信**。指数・業種は TOPIX 業種分類。
+- **市場区分（プライム／スタンダード／グロース）** を明記。
+- リスク章に **政策保有株・親子上場・少数株主の利益相反・東証PBR要請対応** を含める。

@@ -272,3 +272,13 @@ Must return success with zero errors.
 ---
 
 **This skill produces investment banking-quality LBO models by filling templates with correct formulas, proper formatting, and validated calculations. The skill adapts to any template structure while ensuring financial accuracy and professional presentation standards.**
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 日本のバイアウトは **邦銀のLBOローン** 慣行を反映。スキームは **TOB → 二段階買収 → スクイーズアウト**（MBO含む）。
+- 実効税率 約30.6%、円ベース。少数株主の締め出しと **公正性担保措置（特別委員会等）** に留意。

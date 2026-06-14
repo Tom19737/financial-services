@@ -406,3 +406,13 @@ When Master Status shows errors:
 3. Navigate to source tab to investigate
 4. Fix the underlying issue
 5. Return to Checks tab to verify resolution
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 日本基準のPLは **売上高→営業利益→経常利益→税引前→親会社株主に帰属する当期純利益**（特別損益含む）構成。IFRS採用企業は区別。
+- 単位は百万円、実効税率 約30.6%。会社予想を起点に。

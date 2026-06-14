@@ -71,3 +71,13 @@ One-page earnings preview with:
 - "Whisper numbers" from buy-side surveys are often more relevant than published consensus
 - Historical earnings reactions help calibrate expectations (search for "[company] earnings reaction history")
 - Options-implied move tells you what the market expects — compare to your scenarios
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- コンセンサスは **QUICK／IFIS** ＋ **会社予想**。**進捗率** と過去の予想対比の傾向を提示。
+- 決算発表日程は TDnet。注目KPIに日本基準の **営業利益・経常利益** を含める。

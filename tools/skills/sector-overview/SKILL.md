@@ -86,3 +86,13 @@ For each company, brief profile:
 - Sector overviews age fast — note the date and flag data that may be stale
 - Charts are essential — market size waterfall, competitive positioning matrix, valuation scatter plot
 - If for a client, tailor the "so what" to their specific situation (M&A target identification, competitive positioning, market entry)
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 市場規模は **官公庁・業界団体・矢野経済研究所／富士経済** 等の統計。業種分類は **TOPIX-17／東証33業種**。
+- 所管官庁の規制・政策動向を織り込む。

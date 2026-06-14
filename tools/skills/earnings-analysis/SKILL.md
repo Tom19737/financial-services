@@ -226,3 +226,15 @@ Examples of good/bad headlines, tips for success, common mistakes to avoid, and 
 
 **Optional:**
 - XLS skill for model updates (not required for earnings updates)
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 一次情報 = **決算短信（サマリー＋添付）＋決算説明会資料**。四半期報告書は2024年廃止。
+- beat/miss は **会社予想（ガイダンス）対比** と **コンセンサス対比** の両方。**経常利益** 段階も評価。
+- **通期会社予想に対する進捗率**（累計）を必ず確認。**業績予想の修正開示** の有無を確認。
+- 通貨・単位は円／百万円。指数・業種比較は TOPIX 業種分類。

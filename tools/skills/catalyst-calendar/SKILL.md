@@ -82,3 +82,12 @@ Each week, generate a forward-looking summary:
 - Some catalysts are recurring (monthly industry data) — build a template and auto-populate
 - Color-code by impact level: Red = high impact, Yellow = moderate, Green = routine
 - Archive past catalysts with the actual outcome — builds pattern recognition over time
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 日本のイベント周期: **本決算5月・中間11月**、**6月の株主総会集中**、**3月末・9月末の配当／株主優待の権利確定**、業績予想の修正開示、TOB/MBO、東証の開示要請関連。

@@ -40,3 +40,13 @@ wb.save("./out/model.xlsx")
 ## When NOT to use
 
 If `mcp__office__excel_*` tools are available (Cowork plugin mode), use those instead — they drive the user's live workbook with review checkpoints. This skill is the file-producing fallback for headless runs.
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 日本株の成果物を扱う場合の補足。共通の読み替えは [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md)。
+
+- 通貨・単位は **円／百万円**。数値書式は `#,##0`（小数なし、千区切り）、必要に応じ `¥` 表示。
+- 年月は西暦で統一（和暦併記が必要な場合のみ追記）。決算期は3月期等を明示。

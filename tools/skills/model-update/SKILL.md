@@ -93,3 +93,13 @@ Recalculate valuation with updated estimates:
 - If the quarter was noisy, separate signal from noise in your estimate changes
 - Check consensus after updating — how do your revised estimates compare to the Street?
 - Share count matters — dilution from stock comp, converts, or buybacks can materially affect EPS
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 反映元は **決算短信の実績 ＋ 会社予想（通期見通し）**、および **業績予想の修正開示**。
+- **経常利益段階** を含めて更新。通貨・単位は円／百万円。

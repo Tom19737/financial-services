@@ -659,3 +659,16 @@ After completing a comp analysis, ask:
 5. What would make this more useful next time?
 
 The best comp analyses evolve with each iteration. Save templates, learn from feedback, and refine the structure based on what decision-makers actually use.
+
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- 単位は「百万円」。ヘッダの `All figures in USD Millions` は `百万円` に置換。
+- ピアは同業の日本上場企業を基本（海外勢を含める場合は会計基準・為替差を注記）。企業表記は証券コード（4桁、例 7203）。
+- 日本はPBR重視のため、必須列に **PBR・配当利回り・ROE・総還元性向** の追加を検討。
+- データ源は EDINET／TDnet（一次）＋ QUICK／会社四季報を優先（Bloomberg/FactSet は補助）。
+- EV計算で **政策保有株・持分法投資** の扱いを注記。会計基準混在（J-GAAP/IFRS）とのれん償却差を調整。

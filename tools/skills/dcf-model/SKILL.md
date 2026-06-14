@@ -1262,3 +1262,14 @@ Before delivering DCF model:
 - Terminal growth < WACC
 - Tax rate 21-28%
 - File naming: `[Ticker]_DCF_Model_[Date].xlsx`
+
+---
+
+## 日本株対応（ローカライズ）
+
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+
+- リスクフリー = **10年国債（JGB）利回り**、ベータは **TOPIX対比**、WACC・FCF・割引は **円ベース** で統一。
+- 起点は **会社予想（短信の通期見通し）** ＋アナリスト予想。実効税率デフォルト **約30.6%**。
+- **営業利益／経常利益**（経常は日本基準特有）を区別。のれん償却（J-GAAP）の扱いを明示。
+- ターミナル倍率は日本ピアの EV/EBITDA を使用。クロスチェックに **PBR・ROE** も併用。
