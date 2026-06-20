@@ -47,7 +47,7 @@ Antigravity のワークスペース設定ディレクトリである `.agents/`
 
 ---
 
-## 3. データ取得方法と無料データパイプライン（yfinance / GAS連携）
+## 3. データ取得方法と無料データパイプライン（yfinance）
 
 本プロジェクトは、有料データプロバイダ（FactSet等）のMCPコネクタ未接続時でも動作するよう、無料かつ自動でデータ収集を行うためのパイプライン（[scripts/](scripts/)）を搭載しています。
 
@@ -56,11 +56,7 @@ Antigravity のワークスペース設定ディレクトリである `.agents/`
 1. **【第1優先】Pythonライブラリ「yfinance」による自動取得**
    - スクリプト: [fetch_yfinance.py](scripts/fetch_yfinance.py)
    - 動作: 指定したティッカー（日本株は4桁のコードを渡せば自動的に `.T` を付加）の株価、ヒストリカルデータ、財務諸表（PL/BS/CFの年次・四半期）を取得し、`./out/market_data/` にCSV/JSONとして出力します。
-2. **【第2優先】GAS（Google Apps Script）を利用したスプレッドシートデータ取得**
-   - 適用条件: `yfinance` が失敗した場合、またはユーザーから明示的な指示があった場合。
-   - スクリプト: [fetch_gas_sheets.py](scripts/fetch_gas_sheets.py)
-   - 動作: ユーザーが [gas_template.js](scripts/gas_template.js) をスプレッドシートに貼り付けてWeb AppとしてデプロイしたURLから、財務データをJSON形式でプル取得します。
-3. **【第3優先】有料データプロバイダ（MCP） / 手動Web検索**
+2. **【第2優先】有料データプロバイダ（MCP） / 手動Web検索**
    - 上記の自動化ツールが利用できない場合のフォールバック。
 
 ### セットアップと実行方法
@@ -74,10 +70,7 @@ uv venv
 uv pip install yfinance pandas requests openpyxl
 
 # 3. データの取得テスト
-# yfinanceでの取得
 .\.venv\Scripts\python scripts/fetch_yfinance.py 7203
-# GASスプレッドシートからの取得
-.\.venv\Scripts\python scripts/fetch_gas_sheets.py <GAS_URL>
 ```
 
 ---
