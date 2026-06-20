@@ -1,24 +1,18 @@
 import pandas as pd
 import os
-import glob
+import argparse
+import sys
+from utils import find_ticker_dir, normalize_ticker, setup_logging
 
-def find_ticker_dir(base_dir, ticker_str):
-    import glob
-    pattern = os.path.join(base_dir, f"{ticker_str}*")
-    matches = glob.glob(pattern)
-    dirs = [m for m in matches if os.path.isdir(m)]
-    dirs.sort(key=len, reverse=True)
-    if dirs:
-        return dirs[0]
-    return os.path.join(base_dir, ticker_str)
+logger = setup_logging("clean_data")
 
 def clean_prices(ticker_dir):
     prices_path = os.path.join(ticker_dir, "market_data", "prices.csv")
     if not os.path.exists(prices_path):
-        print(f"File not found: {prices_path}")
+        logger.error(f"File not found: {prices_path}")
         return
         
-    print(f"Loading data from {prices_path}...")
+    logger.info(f"Loading data from {prices_path}...")
     df = pd.read_csv(prices_path)
     
     # 検出された問題の出力
@@ -31,7 +25,7 @@ def clean_prices(ticker_dir):
         df[col] = df[col].astype(str).str.strip()
         
     # 2. 日付形式の標準化 (YYYY-MM-DD)
-    # 元は "2025-06-19 00:00:00+09:00"
+    # yfinance特有のタイムゾーン表記を削除し正規化
     if 'Date' in df.columns:
         print("  -> Normalizing Date column to YYYY-MM-DD...")
         df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
@@ -49,7 +43,6 @@ def clean_prices(ticker_dir):
     numeric_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
     for col in numeric_cols:
         if col in df.columns:
-            # 数値型に強制変換し、エラーをNaNにする
             df[col] = pd.to_numeric(df[col], errors='coerce')
             null_count = df[col].isnull().sum()
             if null_count > 0:
@@ -58,13 +51,22 @@ def clean_prices(ticker_dir):
                 
     # 保存
     df.to_csv(prices_path, index=False)
-    print(f"Cleaned data saved back to {prices_path}")
+    logger.info(f"Cleaned data saved back to {prices_path}")
     print("=== Cleaning Complete ===\n")
 
 def main():
-    outdir = "./out"
-    ticker_str = "285A"
-    ticker_dir = find_ticker_dir(outdir, ticker_str)
+    parser = argparse.ArgumentParser(description="Clean up prices.csv data")
+    parser.add_argument("ticker", type=str, help="Stock ticker")
+    parser.add_argument("--outdir", type=str, default="./out", help="Base output directory")
+    args = parser.parse_args()
+    
+    ticker_str = args.ticker.strip()
+    ticker_dir = find_ticker_dir(args.outdir, ticker_str)
+    
+    if not os.path.exists(ticker_dir):
+        logger.error(f"Directory {ticker_dir} does not exist. Please run fetch_yfinance.py first.")
+        sys.exit(1)
+        
     clean_prices(ticker_dir)
 
 if __name__ == "__main__":

@@ -118,7 +118,7 @@ For each idea that passes the screen, present:
 
 ## 日本株対応（ローカライズ）
 
-> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../japan-equity-overrides/SKILL.md) に従い、本スキル固有の上書きは以下。
 
 - ユニバースは **TOPIX／プライム／全上場**。スクリーニング指標に **PBR・ROE・配当利回り** を含める。
 - データは 会社四季報／QUICK。日本固有テーマ（東証PBR要請・ガバナンス改革・株主還元強化）も対象。

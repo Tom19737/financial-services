@@ -71,7 +71,7 @@ Format: Concise markdown or Word doc with the scorecard, recent updates, and cur
 
 ## 日本株対応（ローカライズ）
 
-> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../japan-equity-overrides/SKILL.md) に従い、本スキル固有の上書きは以下。
 
 - カタリストに日本固有要素: **自社株買い／増配・累進配当／政策保有株の縮減／TOB・MBO／ガバナンス改善／東証PBR要請対応**。
 - 会社予想の修正・通期進捗率を仮説の検証ポイントに。

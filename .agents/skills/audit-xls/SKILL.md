@@ -160,7 +160,7 @@ For **model** scope, prepend a summary line:
 
 ## 日本株対応（ローカライズ）
 
-> 日本株の成果物を扱う場合の補足。共通の読み替えは [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md)。
+> 日本株の成果物を扱う場合の補足。共通の読み替えは [日本株ローカライズ共通オーバーライド](../japan-equity-overrides/SKILL.md)。
 
 - 通貨・単位が **円／百万円** で一貫しているか確認。
 - 税率（**約30.6%**）、**営業利益／経常利益** 段階の整合、会計基準（J-GAAP/IFRS）混在の有無を点検。

@@ -660,7 +660,7 @@ The best comp analyses evolve with each iteration. Save templates, learn from fe
 
 ## 日本株対応（ローカライズ）
 
-> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../japan-equity-overrides/SKILL.md) に従い、本スキル固有の上書きは以下。
 
 - 単位は「百万円」。ヘッダの `All figures in USD Millions` は `百万円` に置換。
 - ピアは同業の日本上場企業を基本（海外勢を含める場合は会計基準・為替差を注記）。企業表記は証券コード（4桁、例 7203）。

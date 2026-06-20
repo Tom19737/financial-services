@@ -283,7 +283,7 @@ Run standard visual verification checks on every slide — this catches overlaps
 
 ## 日本株対応（ローカライズ）
 
-> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../japan-equity-overrides/SKILL.md) に従い、本スキル固有の上書きは以下。
 
 - 国内シェア・市場規模は **官公庁・業界団体統計（経産省 等）**。海外競合との比較は為替・会計基準差に留意。
 - 親子上場・系列・資本業務提携など日本固有の競争構造を考慮。
