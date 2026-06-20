@@ -20,21 +20,16 @@ Before starting any LBO model:
 
 ## CRITICAL INSTRUCTIONS FOR CLAUDE - READ FIRST
 
-### Environment: Office JS vs Python
+### Google Workspace / Google Sheets Compatibility
 
-**If running inside Excel (Office Add-in / Office JS environment):**
-- Use Office JS (`Excel.run(async (context) => {...})`) directly — do NOT use Python/openpyxl
-- Write formulas via `range.formulas = [["=B5*B6"]]` — Office JS formulas recalculate natively in the live workbook
-- The same formulas-over-hardcodes rule applies: set `range.formulas`, never `range.values` for anything that should be a calculation
-- Use `range.format.font.color` / `range.format.fill.color` for the blue/black/purple/green convention
-- No separate recalc step needed — Excel handles calculation natively
-- **Merged cell pitfall:** Do NOT call `.merge()` then set `.values` on the merged range (throws `InvalidArgument` — range still reports original dimensions). Instead: write value to top-left cell alone (`ws.getRange("A7").values = [["SOURCES & USES"]]`), then merge + format the full range (`ws.getRange("A7:F7").merge(); ws.getRange("A7:F7").format.fill.color = "#1F4E79";`)
-
-**If generating a standalone .xlsx file (no live Excel session):**
-- Use Python/openpyxl as described below
-- Write formula strings (`ws["D20"] = "=B5*B6"`), then run `recalc.py` before delivery
-
-The rest of this skill is written with openpyxl examples, but the same principles apply to Office JS — just translate the API calls.
+* Microsoft Excel および Office JS (アドイン) は使用しません。常に Python/openpyxl を用いてスタンドアロンの `.xlsx` ファイルを生成します。ユーザーはこれを Google スプレッドシートにインポートして利用します。
+* `recalc.py` が動作しない環境の場合は、Google スプレッドシートでのインポート時に自動計算に任せるため、openpyxl 上ではセルに計算結果（値）を直接書き込むのではなく、正確な **数式文字列**（`=B5*B6` など）を設定することを徹底してください。
+* 循環参照（反復計算）を有効化するため、保存前に必ず `calcPr.iterate = True` の設定コードをスクリプト内に記述してください。
+  ```python
+  from openpyxl.workbook.properties import CalcProperties
+  calc_pr = CalcProperties(iterate=True, refMode='A1', iterateCount=100, iterateDelta=0.001)
+  wb.properties.calcPr = calc_pr
+  ```
 
 ### Core Principles
 * **Every calculation must be an Excel formula** - NEVER compute values in Python and hardcode results into cells. When using openpyxl, write `cell.value = "=B5*B6"` (formula string), NOT `cell.value = 1250` (computed result). The model must be dynamic and update when inputs change.

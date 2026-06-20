@@ -9,11 +9,15 @@ Complete and populate integrated financial model templates with proper linkages 
 
 ## ⚠️ CRITICAL PRINCIPLES — Read Before Populating Any Template
 
-**Environment — Office JS vs Python:**
-- **If running inside Excel (Office Add-in / Office JS):** Use Office JS directly. Write formulas via `range.formulas = [["=D14*(1+Assumptions!$B$5)"]]` — never `range.values` for derived cells. No separate recalc; Excel computes natively. Use `context.workbook.worksheets.getItem(...)` to navigate tabs.
-- **If generating a standalone .xlsx file:** Use Python/openpyxl. Write `ws["D15"] = "=D14*(1+Assumptions!$B$5)"`, then run `recalc.py` before delivery.
-- **Office JS merged cell pitfall:** Do NOT call `.merge()` then set `.values` on the merged range — throws `InvalidArgument` because the range still reports its pre-merge dimensions. Instead write value to top-left cell alone, then merge + format the full range: `ws.getRange("A1").values = [["INCOME STATEMENT"]]; const h = ws.getRange("A1:G1"); h.merge(); h.format.fill.color = "#1F4E79";`
-- All principles below apply identically in either environment.
+**Google Workspace / Google Sheets Compatibility:**
+- Microsoft Excel および Office JS (アドイン) は使用しません。常に Python/openpyxl を用いてスタンドアロンの `.xlsx` ファイルを生成します。ユーザーはこれを Google スプレッドシートにインポートして利用します。
+- `recalc.py` が動作しない環境の場合は、Google スプレッドシートでのインポート時に自動計算に任せるため、openpyxl 上ではセルに計算結果（値）を直接書き込むのではなく、正確な **数式文字列**（`=D14*(1+Assumptions!$B$5)` など）を設定することを徹底してください。
+- 循環参照（反復計算）を有効化するため、保存前に必ず `calcPr.iterate = True` の設定コードをスクリプト内に記述してください。
+  ```python
+  from openpyxl.workbook.properties import CalcProperties
+  calc_pr = CalcProperties(iterate=True, refMode='A1', iterateCount=100, iterateDelta=0.001)
+  wb.properties.calcPr = calc_pr
+  ```
 
 **Formulas over hardcodes (non-negotiable):**
 - Every projection cell, roll-forward, linkage, and subtotal MUST be an Excel formula — never a pre-computed value
@@ -327,9 +331,20 @@ See [references/formulas.md](references/formulas.md) for all formula details.
 
 ### Circular Reference Handling
 
-Interest expense creates circularity: Interest → Net Income → Cash → Debt Balance → Interest
+金利費用（Interest expense）と借入金残高、キャッシュ残高の間には循環参照が発生します：
+Interest → Net Income → Cash → Debt Balance → Interest
 
-Enable iterative calculation in Excel: File → Options → Formulas → Enable iterative calculation. Set maximum iterations to 100, maximum change to 0.001. Add a circuit breaker toggle in Assumptions tab.
+これを適切に解消するため、必ずモデル出力スクリプトに以下の反復計算（Iterative Calculation）有効化コードを含めてください。これにより、Google スプレッドシートや Excel にインポートした際、自動的に反復計算が有効化されます。
+```python
+from openpyxl.workbook.properties import CalcProperties
+calc_pr = CalcProperties(iterate=True, refMode='A1', iterateCount=100, iterateDelta=0.001)
+wb.properties.calcPr = calc_pr
+```
+
+※手動で設定する場合は以下の手順を行います：
+- **Google スプレッドシート**: `ファイル` → `設定` → `計算` → `反復計算` を **オン** に設定し、最大反復回数 `100`、しきい値 `0.001` とします。
+- **Excel**: `ファイル` → `オプション` → `数式` → `反復計算を行う` を **オン** に設定します。
+- また、Assumptions（前提条件）タブにサーキットブレーカー（回路遮断器）トグルを設けて、必要に応じて循環参照を遮断できるように構築します。
 
 ### Check Categories
 
