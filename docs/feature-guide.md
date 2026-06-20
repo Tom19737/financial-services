@@ -51,6 +51,13 @@
 | **earnings-reviewer** | `/agent-earnings-reviewer` | カバレッジ銘柄が決算を発表した際の**決算処理を端から端まで自動実行**。①実績データ・決算資料・コール文字起こしの取得→②ガイダンスや質疑応答のトーン分析→③カバレッジ財務モデルの更新→④モデル監査（audit-xls）→⑤決算ノート草案および実績vs予想の差異テーブルの作成。 | `earnings-analysis`<br>`model-update`<br>`audit-xls`<br>`morning-note`<br>`earnings-preview` |
 | **model-builder** | `/agent-model-builder` | 銘柄と前提条件から**完全リンクされた財務モデル（.xlsx）をゼロから構築**。DCF/LBO/3表/compsのいずれか。①実績財務データの取得→②数式モデルの構築（計算セルへのハードコード禁止、反復計算自動有効化、入力＝青/数式＝黒）→③モデルの監査→④感応度表（感度分析）の追加。 | `dcf-model`<br>`lbo-model`<br>`3-statement-model`<br>`comps-analysis`<br>`audit-xls` |
 
+> [!IMPORTANT]
+> **データ取得の優先順位（無料データパイプライン）**
+> 本プロジェクトにおける財務・株価データの取得は、以下の優先順位に従って動作します。
+> 1. **【第1優先】yfinance (Python)**: [fetch_yfinance.py](file:///d:/Programming/Application/financial-services/scripts/fetch_yfinance.py) を呼び出して株価・ヒストリカルデータ・財務諸表（PL/BS/CFの年次・四半期）を自動取得します。日本株の場合は4桁のコードから自動的に東証サフィックス `.T` を付加します。
+> 2. **【第2優先】GASスプレッドシート (Google Finance)**: [fetch_gas_sheets.py](file:///d:/Programming/Application/financial-services/scripts/fetch_gas_sheets.py) を呼び出してGoogleスプレッドシート上の蓄積データ（[gas_template.js](file:///d:/Programming/Application/financial-services/scripts/gas_template.js) を使用）からプル取得します（`yfinance` 失敗時、または明示的な指示がある場合に適用）。
+> 3. **【第3優先】有料データプロバイダ（MCP） / 手動Web検索**: 上記の自動パイプラインが利用できない場合のフォールバック。
+
 ---
 
 ## 4. カスタムスキル（`.agents/skills/`）
