@@ -1,66 +1,12 @@
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
-from openpyxl.workbook.properties import CalcProperties
 import os
 import sys
-import json
 import argparse
+from utils import find_ticker_dir, get_latest_financial_data, ExcelStyles, setup_logging
 
-try:
-    import pandas as pd
-except ImportError:
-    print("Error: pandas is required.", file=sys.stderr)
-    sys.exit(1)
-
-def find_ticker_dir(base_dir, ticker_str):
-    import glob
-    pattern = os.path.join(base_dir, f"{ticker_str}*")
-    matches = glob.glob(pattern)
-    dirs = [m for m in matches if os.path.isdir(m)]
-    dirs.sort(key=len, reverse=True)
-    if dirs:
-        return dirs[0]
-    return os.path.join(base_dir, ticker_str)
-
-def get_latest_financial_data(ticker_dir, ticker_str):
-    data = {
-        "ticker": ticker_str,
-        "name": ticker_str,
-        "currency": "JPY" if ticker_str.endswith(".T") else "USD",
-        "market_cap": 5930.5e9 / 100, # 100倍バグ補正
-        "ebitda": 768.3e9,
-        "total_debt": 439.5e9,
-        "cash": 167.9e9
-    }
-    
-    sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
-    if os.path.exists(sum_path):
-        with open(sum_path, "r", encoding="utf-8") as f:
-            s = json.load(f)
-            data["name"] = s.get("long_name") or s.get("ticker")
-            data["currency"] = s.get("currency") or data["currency"]
-            data["market_cap"] = s.get("market_cap") or data["market_cap"]
-            data["ebitda"] = s.get("ebitda") or data["ebitda"]
-            if ticker_str.endswith(".T") and s.get("current_price", 0) > 50000:
-                data["market_cap"] /= 100
-                
-    bs_path = os.path.join(ticker_dir, "market_data", "annual_balance_sheet.csv")
-    if os.path.exists(bs_path):
-        df = pd.read_csv(bs_path, index_col=0)
-        # 最新列
-        col = df.columns[0]
-        def get_val(df, idxs, col):
-            for idx in idxs:
-                if idx in df.index:
-                    val = df.loc[idx, col]
-                    if isinstance(val, pd.Series): val = val.iloc[0]
-                    if pd.notna(val): return float(val)
-            return 0.0
-        data["total_debt"] = get_val(df, ["Total Debt", "Long Term Debt"], col)
-        data["cash"] = get_val(df, ["Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents"], col)
-        
-    return data
+logger = setup_logging("generate_lbo")
 
 def build_lbo_model(ticker_data, ticker_dir):
     wb = openpyxl.Workbook()
@@ -68,20 +14,21 @@ def build_lbo_model(ticker_data, ticker_dir):
     ws.title = "LBO Valuation"
     ws.views.sheetView[0].showGridLines = True
     
-    font_family = "Outfit"
-    title_font = Font(name=font_family, size=16, bold=True, color="FFFFFF")
-    header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
-    section_font = Font(name=font_family, size=12, bold=True, color="1B263B")
-    data_font = Font(name=font_family, size=11, color="000000")
-    input_font = Font(name=font_family, size=11, color="003366")
-    bold_data_font = Font(name=font_family, size=11, bold=True, color="000000")
+    # 共通スタイルインポート
+    styles = ExcelStyles()
     
-    primary_fill = PatternFill(start_color="1B263B", end_color="1B263B", fill_type="solid")
-    section_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
-    highlight_fill = PatternFill(start_color="ECFDF5", end_color="ECFDF5", fill_type="solid")
-    
-    thin_border_side = Side(style='thin', color='E2E8F0')
-    thin_border = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
+    font_family = styles.font_family
+    title_font = styles.title_font
+    header_font = styles.header_font
+    section_font = styles.section_font
+    data_font = styles.data_font
+    input_font = styles.input_font
+    bold_data_font = styles.bold_data_font
+    primary_fill = styles.primary_fill
+    section_fill = styles.section_fill
+    highlight_fill = styles.highlight_fill
+    thin_border_side = styles.thin_border_side
+    thin_border = styles.thin_border
     
     is_jpy = ticker_data["currency"] == "JPY"
     unit_str = "Bn JPY" if is_jpy else "Mn USD"
@@ -92,6 +39,7 @@ def build_lbo_model(ticker_data, ticker_dir):
     debt_val = ticker_data["total_debt"] / div_factor if ticker_data["total_debt"] else 439.5
     cash_val = ticker_data["cash"] / div_factor if ticker_data["cash"] else 167.9
     eb_val = ticker_data["ebitda"] / div_factor if ticker_data["ebitda"] else 768.3
+    da_val = ticker_data["depreciation"] / div_factor if ticker_data["depreciation"] else eb_val * 0.4
     
     # タイトル
     ws.merge_cells("A1:H1")
@@ -207,11 +155,12 @@ def build_lbo_model(ticker_data, ticker_dir):
         c.alignment = Alignment(horizontal="center")
     ws.row_dimensions[26].height = 24
     
+    # M-5修正: da (ウォルラス演算子) を単純な変数 da_val に置換
     cf_data = [
         ("EBITDA", [eb_val, "=B27*1.08", "=C27*1.06", "=D27*1.05", "=E27*1.05"]),
-        ("Less: Depreciation & Amortization", [da := eb_val * 0.4, "=B28*1.05", "=C28*1.05", "=D28*1.04", "=E28*1.04"]),
+        ("Less: Depreciation & Amortization", [da_val, "=B28*1.05", "=C28*1.05", "=D28*1.04", "=E28*1.04"]),
         ("EBIT", ["=B27-B28", "=C27-C28", "=D27-D28", "=E27-E28", "=F27-F28"]),
-        ("Less: Interest Expense (Senior + Mezz)", ["=B18*0.06+B19*0.10", "=C18*0.06+C19*0.10", "=D18*0.06+D19*0.10", "=E18*0.06+E19*0.10", "=F18*0.06+F19*0.10"]), # 概算金利
+        ("Less: Interest Expense (Senior + Mezz)", ["=B18*0.06+B19*0.10", "=C18*0.06+C19*0.10", "=D18*0.06+D19*0.10", "=E18*0.06+E19*0.10", "=F18*0.06+F19*0.10"]),
         ("Pretax Income", ["=B29-B30", "=C29-C30", "=D29-D30", "=E29-E30", "=F29-F30"]),
         ("Less: Taxes (30.6%)", ["=B31*0.306", "=C31*0.306", "=D31*0.306", "=E31*0.306", "=F31*0.306"]),
         ("Net Income", ["=B31-B32", "=C31-C32", "=D31-D32", "=E31-E32", "=F31-F32"]),
@@ -263,7 +212,7 @@ def build_lbo_model(ticker_data, ticker_dir):
         
         # Exit EV = Exit Multiple * FY29 EBITDA (F27)
         ws.cell(row=row, column=2, value=f"=A{row}*F27").number_format = '#,##0.0'
-        # Less: Net Debt = Ending Senior Debt (F41) + Mezzanine (B19) - Cash (Assume flat cash from Beginning Cash)
+        # Less: Net Debt = Ending Senior Debt (F41) + Mezzanine (B19)
         ws.cell(row=row, column=3, value=f"=F41+$B$19").number_format = '#,##0.0'
         # Exit Equity Value = EV - Net Debt
         ws.cell(row=row, column=4, value=f"=B{row}-C{row}").number_format = '#,##0.0'
@@ -272,7 +221,7 @@ def build_lbo_model(ticker_data, ticker_dir):
         # IRR = (MoIC)^(1/5) - 1
         ws.cell(row=row, column=6, value=f"=(E{row})^(1/5)-1").number_format = '0.0%'
         
-        # ハイライト (ベースケースの10倍)
+        # ベースケース（10倍）をハイライト
         if mult == 10.0:
             for col in range(1, 7):
                 ws.cell(row=row, column=col).fill = highlight_fill
@@ -291,20 +240,23 @@ def build_lbo_model(ticker_data, ticker_dir):
     os.makedirs(target_path, exist_ok=True)
     out_file = os.path.join(target_path, f"lbo_{ticker_data['ticker']}.xlsx")
     wb.save(out_file)
-    print(f"LBO model saved to {out_file}")
+    logger.info(f"Successfully generated LBO model: {out_file}")
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("ticker", type=str)
-    parser.add_argument("--outdir", type=str, default="./out")
+    parser = argparse.ArgumentParser(description="Generate LBO valuation model")
+    parser.add_argument("ticker", type=str, help="Stock ticker")
+    parser.add_argument("--outdir", type=str, default="./out", help="Base output directory")
     args = parser.parse_args()
     
     ticker_str = args.ticker.strip()
-    if len(ticker_str) == 4 and ticker_str[0].isdigit() and ticker_str.isalnum():
-        ticker_str = f"{ticker_str}.T"
-        
     ticker_dir = find_ticker_dir(args.outdir, ticker_str)
-    ticker_data = get_latest_financial_data(ticker_dir, ticker_str)
+    
+    try:
+        ticker_data = get_latest_financial_data(ticker_dir, ticker_str)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        sys.exit(1)
+        
     build_lbo_model(ticker_data, ticker_dir)
 
 if __name__ == "__main__":

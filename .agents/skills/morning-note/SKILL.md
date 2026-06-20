@@ -93,7 +93,7 @@ If a coverage company reported, provide a quick reaction:
 
 ## 日本株対応（ローカライズ）
 
-> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../japan-equity-overrides/SKILL.md) に従い、本スキル固有の上書きは以下。
 
 - 前日の **米国市場引け・USD/JPY・主要ADR・SQ** を織り込み、**寄り付き前（8時台）** 配信を想定。
 - 日本市場の前日終値と自社カバレッジの適時開示（TDnet）を反映。

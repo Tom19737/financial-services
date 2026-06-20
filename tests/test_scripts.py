@@ -12,6 +12,18 @@ import scripts.fetch_yfinance as fetch_yfinance
 
 class TestFetchYFinance(unittest.TestCase):
     
+    def setUp(self):
+        # 一時テストフォルダのクリア
+        for path in ['./out/test_market_data', './out/test_partial_data']:
+            if os.path.exists(path):
+                shutil.rmtree(path)
+
+    def tearDown(self):
+        # テスト実行後のクリーンアップ
+        for path in ['./out/test_market_data', './out/test_partial_data']:
+            if os.path.exists(path):
+                shutil.rmtree(path)
+
     @patch('yfinance.Ticker')
     def test_fetch_yfinance_success(self, mock_ticker):
         # Tickerのモック設定
@@ -47,26 +59,25 @@ class TestFetchYFinance(unittest.TestCase):
         
         # 引数のパースと実行
         with patch('sys.argv', ['fetch_yfinance.py', '7203', '--outdir', './out/test_market_data']):
-            # outdirのクリーンアップ
-            if os.path.exists('./out/test_market_data'):
-                shutil.rmtree('./out/test_market_data')
-            
             fetch_yfinance.main()
             
+            # 保存先フォルダ名は 7203.T_Toyota_Motor_Corporation / market_data
+            target_dir = './out/test_market_data/7203.T_Toyota_Motor_Corporation/market_data'
+            
             # ファイルが作成されたか確認
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/prices.csv'))
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/summary.json'))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'prices.csv')))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'summary.json')))
             
             # 財務諸表CSVの存在確認
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/annual_income_stmt.csv'))
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/quarterly_income_stmt.csv'))
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/annual_balance_sheet.csv'))
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/quarterly_balance_sheet.csv'))
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/annual_cashflow.csv'))
-            self.assertTrue(os.path.exists('./out/test_market_data/7203.T/quarterly_cashflow.csv'))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'annual_income_stmt.csv')))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'quarterly_income_stmt.csv')))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'annual_balance_sheet.csv')))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'quarterly_balance_sheet.csv')))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'annual_cashflow.csv')))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'quarterly_cashflow.csv')))
             
             # JSONの中身を検証
-            with open('./out/test_market_data/7203.T/summary.json', 'r', encoding='utf-8') as f:
+            with open(os.path.join(target_dir, 'summary.json'), 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.assertEqual(data['ticker'], '7203.T')
                 self.assertEqual(data['current_price'], 2776.5)
@@ -94,17 +105,16 @@ class TestFetchYFinance(unittest.TestCase):
         mock_instance.quarterly_cashflow = None
         
         with patch('sys.argv', ['fetch_yfinance.py', '7203', '--outdir', './out/test_partial_data']):
-            # クリーンアップ
-            if os.path.exists('./out/test_partial_data'):
-                shutil.rmtree('./out/test_partial_data')
-            
             fetch_yfinance.main()
             
+            # 保存先フォルダ名は 7203.T / market_data
+            target_dir = './out/test_partial_data/7203.T/market_data'
+            
             # 株価や正常なBSは出力されるが、欠損しているPLやCFファイルは生成されずに正常終了することを確認
-            self.assertTrue(os.path.exists('./out/test_partial_data/7203.T/prices.csv'))
-            self.assertTrue(os.path.exists('./out/test_partial_data/7203.T/annual_balance_sheet.csv'))
-            self.assertFalse(os.path.exists('./out/test_partial_data/7203.T/annual_income_stmt.csv'))
-            self.assertFalse(os.path.exists('./out/test_partial_data/7203.T/annual_cashflow.csv'))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'prices.csv')))
+            self.assertTrue(os.path.exists(os.path.join(target_dir, 'annual_balance_sheet.csv')))
+            self.assertFalse(os.path.exists(os.path.join(target_dir, 'annual_income_stmt.csv')))
+            self.assertFalse(os.path.exists(os.path.join(target_dir, 'annual_cashflow.csv')))
 
     @patch('yfinance.Ticker')
     def test_fetch_yfinance_invalid_ticker(self, mock_ticker):
@@ -118,8 +128,6 @@ class TestFetchYFinance(unittest.TestCase):
         with patch('sys.argv', ['fetch_yfinance.py', 'INVALID_TICKER']):
             with self.assertRaises(SystemExit) as cm:
                 fetch_yfinance.main()
-            self.assertEqual(cm.exception.code, 1)
-
             self.assertEqual(cm.exception.code, 1)
 
 if __name__ == '__main__':

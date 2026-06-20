@@ -1,94 +1,18 @@
 import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.properties import CalcProperties
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 import os
 import sys
-import json
 import argparse
+from utils import find_ticker_dir, get_latest_financial_data, ExcelStyles, setup_logging
 
-try:
-    import pandas as pd
-except ImportError:
-    print("Error: pandas is required.", file=sys.stderr)
-    sys.exit(1)
-
-def find_ticker_dir(base_dir, ticker_str):
-    import glob
-    pattern = os.path.join(base_dir, f"{ticker_str}*")
-    matches = glob.glob(pattern)
-    dirs = [m for m in matches if os.path.isdir(m)]
-    dirs.sort(key=len, reverse=True)
-    if dirs:
-        return dirs[0]
-    return os.path.join(base_dir, ticker_str)
-
-def get_latest_financial_data(ticker_dir, ticker_str):
-    data = {
-        "ticker": ticker_str,
-        "name": ticker_str,
-        "currency": "JPY" if ticker_str.endswith(".T") else "USD",
-        "revenue": 1706.5e9,
-        "ebitda": 768.3e9,
-        "ebit": 456.0e9,
-        "depreciation": 312.3e9,
-        "tax": 98.3e9,
-        "total_debt": 439.5e9,
-        "cash": 167.9e9,
-        "shares_outstanding": 546.1e6,
-        "current_price": 1086.0
-    }
-    
-    sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
-    if os.path.exists(sum_path):
-        with open(sum_path, "r", encoding="utf-8") as f:
-            s = json.load(f)
-            data["name"] = s.get("long_name") or s.get("ticker")
-            data["currency"] = s.get("currency") or data["currency"]
-            data["shares_outstanding"] = s.get("shares_outstanding") or data["shares_outstanding"]
-            data["current_price"] = s.get("current_price") or data["current_price"]
-            if ticker_str.endswith(".T") and data["current_price"] > 50000:
-                data["current_price"] /= 100
-                
-    def get_val(df, idxs, col):
-        for idx in idxs:
-            if idx in df.index:
-                val = df.loc[idx, col]
-                if isinstance(val, pd.Series): val = val.iloc[0]
-                if pd.notna(val): return float(val)
-        return 0.0
-        
-    def get_latest_col(df, idxs):
-        for idx in idxs:
-            if idx in df.index:
-                for col in df.columns:
-                    val = df.loc[idx, col]
-                    if isinstance(val, pd.Series): val = val.iloc[0]
-                    if pd.notna(val) and val != 0: return col
-        return df.columns[0]
-
-    inc_path = os.path.join(ticker_dir, "market_data", "annual_income_stmt.csv")
-    if os.path.exists(inc_path):
-        df = pd.read_csv(inc_path, index_col=0)
-        col = get_latest_col(df, ["Total Revenue"])
-        data["revenue"] = get_val(df, ["Total Revenue", "Operating Revenue"], col)
-        data["ebit"] = get_val(df, ["EBIT", "Operating Income"], col)
-        data["depreciation"] = get_val(df, ["Reconciled Depreciation", "Depreciation"], col)
-        data["tax"] = get_val(df, ["Tax Provision", "Income Tax Expense"], col)
-        
-    bs_path = os.path.join(ticker_dir, "market_data", "annual_balance_sheet.csv")
-    if os.path.exists(bs_path):
-        df = pd.read_csv(bs_path, index_col=0)
-        col = get_latest_col(df, ["Total Assets"])
-        data["total_debt"] = get_val(df, ["Total Debt", "Long Term Debt"], col)
-        data["cash"] = get_val(df, ["Cash Cash Equivalents And Short Term Investments", "Cash And Cash Equivalents"], col)
-        
-    return data
+logger = setup_logging("generate_3statement")
 
 def build_3statement_model(ticker_data, ticker_dir):
     wb = openpyxl.Workbook()
     
-    # 反復計算有効化
+    # 反復計算有効化（3表の循環参照解決に必須）
     calc_pr = CalcProperties(iterate=True, refMode='A1', iterateCount=100, iterateDelta=0.001)
     wb.properties.calcPr = calc_pr
     
@@ -96,20 +20,20 @@ def build_3statement_model(ticker_data, ticker_dir):
     ws.title = "3-Statement Model"
     ws.views.sheetView[0].showGridLines = True
     
-    font_family = "Outfit"
-    title_font = Font(name=font_family, size=16, bold=True, color="FFFFFF")
-    header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
-    section_font = Font(name=font_family, size=12, bold=True, color="1B263B")
-    data_font = Font(name=font_family, size=11, color="000000")
-    input_font = Font(name=font_family, size=11, color="003366")
-    bold_data_font = Font(name=font_family, size=11, bold=True, color="000000")
+    # 共通スタイルのインポート
+    styles = ExcelStyles()
     
-    primary_fill = PatternFill(start_color="1B263B", end_color="1B263B", fill_type="solid")
-    section_fill = PatternFill(start_color="F1F5F9", end_color="F1F5F9", fill_type="solid")
-    highlight_fill = PatternFill(start_color="ECFDF5", end_color="ECFDF5", fill_type="solid")
-    
-    thin_border_side = Side(style='thin', color='E2E8F0')
-    thin_border = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
+    font_family = styles.font_family
+    title_font = styles.title_font
+    header_font = styles.header_font
+    section_font = styles.section_font
+    data_font = styles.data_font
+    input_font = styles.input_font
+    bold_data_font = styles.bold_data_font
+    primary_fill = styles.primary_fill
+    section_fill = styles.section_fill
+    highlight_fill = styles.highlight_fill
+    thin_border_side = styles.thin_border_side
     
     is_jpy = ticker_data["currency"] == "JPY"
     unit_str = "Bn JPY" if is_jpy else "Mn USD"
@@ -119,7 +43,7 @@ def build_3statement_model(ticker_data, ticker_dir):
     rev_act = ticker_data["revenue"] / div_factor
     ebit_act = ticker_data["ebit"] / div_factor
     da_act = ticker_data["depreciation"] / div_factor
-    tax_act = ticker_data["tax"] / div_factor
+    tax_act = ticker_data["tax_provision"] / div_factor
     debt_act = ticker_data["total_debt"] / div_factor
     cash_act = ticker_data["cash"] / div_factor
     
@@ -132,7 +56,7 @@ def build_3statement_model(ticker_data, ticker_dir):
     ws.row_dimensions[1].height = 40
     
     # ヘッダー
-    headers = ["Integrated Financial Model", "FY24A", "FY25E", "FY26E", "FY27E", "FY28E", "FY29E"]
+    headers = [f"Integrated Financial Model ({unit_str})", "FY24A", "FY25E", "FY26E", "FY27E", "FY28E", "FY29E"]
     for col_idx, header in enumerate(headers, 1):
         c = ws.cell(row=3, column=col_idx, value=header)
         c.font = header_font
@@ -158,7 +82,7 @@ def build_3statement_model(ticker_data, ticker_dir):
         ("Depreciation & Amortization", [da_act, "=C6*0.10", "=D6*0.10", "=E6*0.095", "=F6*0.09", "=G6*0.09"]),
         ("EBIT (Operating Income)", ["=B11-B12", "=C11-C12", "=D11-D12", "=E11-E12", "=F11-F12", "=G11-G12"]),
         ("Interest Expense", [15.0, "=AVERAGE(B28,C28)*0.025", "=AVERAGE(C28,D28)*0.025", "=AVERAGE(D28,E28)*0.025", "=AVERAGE(E28,F28)*0.025", "=AVERAGE(F28,G28)*0.025"]), # B/S Debtを参照
-        ("Pretax Income", ["=B13-B14", "=C13-C14", "=D13-D14", "=E13-D14", "=F13-F14", "=G13-G14"]),
+        ("Pretax Income", ["=B13-B14", "=C13-C14", "=D13-D14", "=E13-E14", "=F13-F14", "=G13-G14"]), # C-1バグ修正: "=E13-D14" -> "=E13-E14"
         ("Income Taxes", [tax_act, f"=C15*{tax_rate_ltm:.4f}", f"=D15*{tax_rate_ltm:.4f}", f"=E15*{tax_rate_ltm:.4f}", f"=F15*{tax_rate_ltm:.4f}", f"=G15*{tax_rate_ltm:.4f}"]),
         ("Net Income", ["=B15-B16", "=C15-C16", "=D15-D16", "=E15-E16", "=F15-F16", "=G15-G16"])
     ]
@@ -166,7 +90,7 @@ def build_3statement_model(ticker_data, ticker_dir):
     # 2. 貸借対照表 (Balance Sheet)
     bs_rows = [
         ("ASSETS", ["", "", "", "", "", ""]),
-        ("Cash & Equivalents", [cash_act, "=B49", "=C49", "=D49", "=E49", "=F49"]), # CFの期末現金 (49行目)。C列はB49(前期末Cash)、D列はC49...
+        ("Cash & Equivalents", [cash_act, "=B49", "=C49", "=D49", "=E49", "=F49"]), # CFの期末現金 (49行目)
         ("Accounts Receivable", [rev_act * 0.12, "=C6*0.12", "=D6*0.12", "=E6*0.12", "=F6*0.12", "=G6*0.12"]),
         ("Inventory", [rev_act * 0.18, "=C6*0.17", "=D6*0.17", "=E6*0.17", "=F6*0.17", "=G6*0.17"]),
         ("Property, Plant & Equipment (Net)", [1200.0, "=B24+C43-C12", "=C24+D43-D12", "=D24+E43-E12", "=E24+F43-F12", "=F24+G43-G12"]), # 前期PPE + CapEx(43行目) - D&A(12行目)
@@ -205,7 +129,7 @@ def build_3statement_model(ticker_data, ticker_dir):
         ("Ending Cash Balance", ["=B47+B48", "=C47+C48", "=D47+D48", "=E47+E48", "=F47+F48", "=G47+G48"])
     ]
     
-    # データを流し込む関数 (行番号が重ならないようにマージ制御を組み込み)
+    # データを流し込む関数
     def populate_section(rows, start_row):
         for idx, (label, vals) in enumerate(rows):
             r = start_row + idx
@@ -270,20 +194,23 @@ def build_3statement_model(ticker_data, ticker_dir):
     os.makedirs(target_path, exist_ok=True)
     out_file = os.path.join(target_path, f"3statement_{ticker_data['ticker']}.xlsx")
     wb.save(out_file)
-    print(f"3-Statement model saved to {out_file}")
+    logger.info(f"Successfully generated 3-Statement model: {out_file}")
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("ticker", type=str)
-    parser.add_argument("--outdir", type=str, default="./out")
+    parser = argparse.ArgumentParser(description="Generate 3-statement financial model")
+    parser.add_argument("ticker", type=str, help="Stock ticker")
+    parser.add_argument("--outdir", type=str, default="./out", help="Base output directory")
     args = parser.parse_args()
     
     ticker_str = args.ticker.strip()
-    if len(ticker_str) == 4 and ticker_str[0].isdigit() and ticker_str.isalnum():
-        ticker_str = f"{ticker_str}.T"
-        
     ticker_dir = find_ticker_dir(args.outdir, ticker_str)
-    ticker_data = get_latest_financial_data(ticker_dir, ticker_str)
+    
+    try:
+        ticker_data = get_latest_financial_data(ticker_dir, ticker_str)
+    except FileNotFoundError as e:
+        logger.error(str(e))
+        sys.exit(1)
+        
     build_3statement_model(ticker_data, ticker_dir)
 
 if __name__ == "__main__":

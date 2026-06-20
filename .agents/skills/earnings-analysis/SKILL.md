@@ -232,7 +232,7 @@ Examples of good/bad headlines, tips for success, common mistakes to avoid, and 
 
 ## 日本株対応（ローカライズ）
 
-> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../../localization/japan-equity-overrides.md) に従い、本スキル固有の上書きは以下。
+> 本スキルは米国式（英語開示・USD・SEC EDGAR）前提。日本株では共通の読み替えを [日本株ローカライズ共通オーバーライド](../japan-equity-overrides/SKILL.md) に従い、本スキル固有の上書きは以下。
 
 - 一次情報 = **決算短信（サマリー＋添付）＋決算説明会資料**。四半期報告書は2024年廃止。
 - beat/miss は **会社予想（ガイダンス）対比** と **コンセンサス対比** の両方。**経常利益** 段階も評価。
