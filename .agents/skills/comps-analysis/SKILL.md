@@ -76,18 +76,14 @@ Start with headers that force strategic thinking about what matters, input clean
 
 ## ⚠️ CRITICAL: Formulas Over Hardcodes + Step-by-Step Verification
 
-**Environment — Office JS vs Python:**
-- **If running inside Excel (Office Add-in / Office JS):** Use Office JS directly (`Excel.run(async (context) => {...})`). Write formulas via `range.formulas = [["=E7/C7"]]`, not `range.values`. No separate recalc step — Excel handles it natively. Use `range.format.*` for colors/fonts.
-- **If generating a standalone .xlsx file:** Use Python/openpyxl. Write `cell.value = "=E7/C7"` (formula string).
-- Same principles either way — just translate the API calls.
-- **Office JS merged cell pitfall:** Do NOT call `.merge()` then set `.values` on the merged range (throws `InvalidArgument` — range still reports its pre-merge dimensions). Instead write the value to the top-left cell alone, then merge + format the full range:
-  ```js
-  ws.getRange("A1").values = [["TECHNOLOGY — COMPARABLE COMPANY ANALYSIS"]];
-  const hdr = ws.getRange("A1:H1");
-  hdr.merge();
-  hdr.format.fill.color = "#1F4E79";
-  hdr.format.font.color = "#FFFFFF";
-  hdr.format.font.bold = true;
+**Google Workspace / Google Sheets Compatibility:**
+- Microsoft Excel および Office JS (アドイン) は使用しません。常に Python/openpyxl を用いてスタンドアロンの `.xlsx` ファイルを生成します。ユーザーはこれを Google スプレッドシートにインポートして利用します。
+- `recalc.py` が動作しない環境の場合は、Google スプレッドシートでのインポート時に自動計算に任せるため、openpyxl 上ではセルに計算結果（値）を直接書き込むのではなく、正確な **数式文字列**（`=E7/C7` など）を設定することを徹底してください。
+- 循環参照（反復計算）を有効化するため、保存前に必ず `calcPr.iterate = True` の設定コードをスクリプト内に記述してください。
+  ```python
+  from openpyxl.workbook.properties import CalcProperties
+  calc_pr = CalcProperties(iterate=True, refMode='A1', iterateCount=100, iterateDelta=0.001)
+  wb.properties.calcPr = calc_pr
   ```
 
 **Formulas, not hardcodes:**

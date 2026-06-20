@@ -37,9 +37,9 @@ wb.save("./out/model.xlsx")
 - **Balance checks.** Include a Checks tab that ties (BS balances, CF ties to cash, etc.) and surfaces TRUE/FALSE.
 - **One model per file.** Do not append to an existing workbook unless explicitly asked.
 
-## When NOT to use
+## Google Workspace / Google Sheets Compatibility
 
-If `mcp__office__excel_*` tools are available (Cowork plugin mode), use those instead — they drive the user's live workbook with review checkpoints. This skill is the file-producing fallback for headless runs.
+Google Workspace（Google スプレッドシート）を分析に使用するため、`mcp__office__excel_*` などのライブ Excel 連携ツールは一切使用しないでください。常にこの headless スキル（Python/openpyxl）を使用して、Google ドライブに直接アップロード可能な `.xlsx` ファイルを生成してください。
 
 
 ---

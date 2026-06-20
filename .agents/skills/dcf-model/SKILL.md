@@ -17,29 +17,15 @@ This skill creates institutional-quality DCF models for equity valuation followi
 
 These constraints apply throughout all DCF model building. Review before starting:
 
-**Environment: Office JS vs Python/openpyxl:**
-- **If running inside Excel (Office Add-in / Office JS environment):** Use Office JS directly — do NOT use Python/openpyxl. Write formulas via `range.formulas = [["=D19*(1+$B$8)"]]`. No separate recalc step needed; Excel calculates natively. Use `range.format.*` for styling. The same formulas-over-hardcodes rule applies: set `.formulas`, never `.values` for derived cells.
-- **If generating a standalone .xlsx file (no live Excel session):** Use Python/openpyxl as described below, then run `recalc.py` before delivery.
-- The rest of this skill uses openpyxl examples — translate to Office JS API calls when in that environment, but all principles (formula strings, cell comments, section checkpoints, sensitivity table loops) apply identically.
-
-**⚠️ Office JS merged cell pitfall:** When building section headers with merged cells, do NOT call `.merge()` then set `.values` on the merged range — Office JS still reports the range's original dimensions and will throw `InvalidArgument: The number of rows or columns in the input array doesn't match the size or dimensions of the range`. Instead, write the value to the top-left cell alone, then merge and format the full range:
-
-```js
-// WRONG — throws InvalidArgument:
-const hdr = ws.getRange("A7:H7");
-hdr.merge();
-hdr.values = [["MARKET DATA & KEY INPUTS"]];  // 1×1 array vs 1×8 range → fails
-
-// CORRECT — value first on single cell, then merge + format the range:
-ws.getRange("A7").values = [["MARKET DATA & KEY INPUTS"]];
-const hdr = ws.getRange("A7:H7");
-hdr.merge();
-hdr.format.fill.color = "#1F4E79";
-hdr.format.font.bold = true;
-hdr.format.font.color = "#FFFFFF";
-```
-
-This applies to every merged section header in the DCF (market data, scenario blocks, cash flow projection, terminal value, valuation summary, sensitivity tables).
+**Google Workspace / Google Sheets Compatibility:**
+- Microsoft Excel および Office JS (アドイン) は使用しません。常に Python/openpyxl を用いてスタンドアロン의 `.xlsx` ファイルを生成します。ユーザーはこれを Google スプレッドシートにインポートして利用します。
+- `recalc.py` などのローカル再計算ツールが実行できない環境の場合、数値の再計算はユーザーが Google スプレッドシートでファイルを開いた際に自動で行われます。したがって、openpyxl 上ではセルに計算結果（値）を直接書き込むのではなく、正確な **数式文字列**（`=D19*(1+$B$8)` など）を設定することを徹底してください。
+- 循環参照（反復計算）を有効化するため、保存前に必ず `calcPr.iterate = True` の設定コードをスクリプト内に記述してください。
+  ```python
+  from openpyxl.workbook.properties import CalcProperties
+  calc_pr = CalcProperties(iterate=True, refMode='A1', iterateCount=100, iterateDelta=0.001)
+  wb.properties.calcPr = calc_pr
+  ```
 
 **Formulas Over Hardcodes (NON-NEGOTIABLE):**
 - Every projection, margin, discount factor, PV, and sensitivity cell MUST be a live Excel formula — never a value computed in Python and written as a number
@@ -797,23 +783,17 @@ Create **two sheets**:
 
 **CRITICAL**: Sensitivity tables go at the BOTTOM of the DCF sheet (not on a separate sheet). This keeps all valuation outputs together.
 
-### Formula Recalculation (MANDATORY)
+### Formula Recalculation & Error Checking
 
-After creating or modifying the Excel model, **recalculate all formulas** using the recalc.py script from the xlsx skill:
+Excelモデルの作成・修正後、可能な環境（LibreOfficeが利用可能で `recalc.py` が動作する環境）であれば、以下のコマンドを実行して数式にエラーがないかチェックします。
 
 ```bash
 python recalc.py [path_to_excel_file] [timeout_seconds]
 ```
 
-Example:
-```bash
-python recalc.py AAPL_DCF_Model_2025-10-12.xlsx 30
-```
+Google スプレッドシートを分析に使用する場合、ファイルがアップロードされた時点で自動的に再計算が行われます。したがって、もし `recalc.py` が動作しない環境の場合は、Pythonコード（openpyxl）内で記述したすべての数式がシンタックス的に正しく、循環参照やスペルミスが無いことを静的に十分検証した上で成果物を提出してください。
 
-The script will:
-- Recalculate all formulas in all sheets using LibreOffice
-- Scan ALL cells for Excel errors (#REF!, #DIV/0!, #VALUE!, #NAME?, #NULL!, #NUM!, #N/A)
-- Return detailed JSON with error locations and counts
+`recalc.py` が実行可能な場合、このスクリプトは以下を検証します：
 
 **Expected output format:**
 ```json
