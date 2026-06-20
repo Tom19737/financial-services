@@ -13,13 +13,13 @@ def parse_args():
     parser.add_argument("--skip-fundamentals", action="store_true", help="Skip fetching financial statements (PL/BS/CF)")
     return parser.parse_args()
 
-def save_financial_statement(df, ticker_str, name, outdir):
+def save_financial_statement(df, name, outdir):
     """財務諸表DataFrameをCSVとして保存するヘルパー関数"""
     if df is None or df.empty:
-        print(f"Warning: No data found for {name} ({ticker_str}). Skipping.")
+        print(f"Warning: No data found for {name}. Skipping.")
         return False
     try:
-        csv_path = os.path.join(outdir, f"{ticker_str}_{name}.csv")
+        csv_path = os.path.join(outdir, f"{name}.csv")
         df.to_csv(csv_path)
         print(f"Saved {name} to {csv_path}")
         return True
@@ -49,11 +49,12 @@ def main():
             print(f"Error: No historical data found for {ticker_str}.", file=sys.stderr)
             sys.exit(1)
             
-        # ディレクトリ作成
-        os.makedirs(args.outdir, exist_ok=True)
+        # ディレクトリ作成 (企業コードごとのフォルダ)
+        target_dir = os.path.join(args.outdir, ticker_str)
+        os.makedirs(target_dir, exist_ok=True)
         
         # 株価CSV出力
-        csv_path = os.path.join(args.outdir, f"{ticker_str}.csv")
+        csv_path = os.path.join(target_dir, "prices.csv")
         hist.to_csv(csv_path)
         print(f"Saved historical stock prices to {csv_path}")
         
@@ -82,7 +83,7 @@ def main():
         }
         
         # 基本情報JSON出力
-        json_path = os.path.join(args.outdir, f"{ticker_str}.json")
+        json_path = os.path.join(target_dir, "summary.json")
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False, indent=2)
         print(f"Saved summary data to {json_path}")
@@ -93,22 +94,22 @@ def main():
             
             # 損益計算書 (Income Statement)
             try:
-                save_financial_statement(ticker.income_stmt, ticker_str, "annual_income_stmt", args.outdir)
-                save_financial_statement(ticker.quarterly_income_stmt, ticker_str, "quarterly_income_stmt", args.outdir)
+                save_financial_statement(ticker.income_stmt, "annual_income_stmt", target_dir)
+                save_financial_statement(ticker.quarterly_income_stmt, "quarterly_income_stmt", target_dir)
             except Exception as e:
                 print(f"Warning: Failed to fetch Income Statement: {e}", file=sys.stderr)
                 
             # 貸借対照表 (Balance Sheet)
             try:
-                save_financial_statement(ticker.balance_sheet, ticker_str, "annual_balance_sheet", args.outdir)
-                save_financial_statement(ticker.quarterly_balance_sheet, ticker_str, "quarterly_balance_sheet", args.outdir)
+                save_financial_statement(ticker.balance_sheet, "annual_balance_sheet", target_dir)
+                save_financial_statement(ticker.quarterly_balance_sheet, "quarterly_balance_sheet", target_dir)
             except Exception as e:
                 print(f"Warning: Failed to fetch Balance Sheet: {e}", file=sys.stderr)
                 
             # キャッシュフロー計算書 (Cash Flow)
             try:
-                save_financial_statement(ticker.cashflow, ticker_str, "annual_cashflow", args.outdir)
-                save_financial_statement(ticker.quarterly_cashflow, ticker_str, "quarterly_cashflow", args.outdir)
+                save_financial_statement(ticker.cashflow, "annual_cashflow", target_dir)
+                save_financial_statement(ticker.quarterly_cashflow, "quarterly_cashflow", target_dir)
             except Exception as e:
                 print(f"Warning: Failed to fetch Cash Flow Statement: {e}", file=sys.stderr)
         
