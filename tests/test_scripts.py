@@ -76,6 +76,44 @@ class TestFetchYFinance(unittest.TestCase):
                 self.assertEqual(data['current_price'], 2776.5)
                 self.assertEqual(data['market_cap'], 32876682805248)
 
+    @patch('yfinance.Ticker')
+    def test_fetch_yfinance_partial_data(self, mock_ticker):
+        # Tickerのモック設定
+        mock_instance = MagicMock()
+        mock_ticker.return_value = mock_instance
+        
+        # historyのモック
+        import pandas as pd
+        mock_instance.history.return_value = pd.DataFrame({
+            'Close': [2776.5]
+        }, index=pd.date_range(start='2026-06-20', periods=1))
+        
+        # infoは最小限、財務諸表の一部がNoneや空のDataFrameで欠損している設定
+        mock_instance.info = {"currentPrice": 2776.5}
+        mock_instance.income_stmt = None  # PL欠損
+        mock_instance.quarterly_income_stmt = pd.DataFrame()  # 空のPL
+        mock_instance.balance_sheet = pd.DataFrame({'2026-06-20': [100.0]}, index=['Assets']) # BSは正常
+        mock_instance.quarterly_balance_sheet = None
+        mock_instance.cashflow = None
+        mock_instance.quarterly_cashflow = None
+        
+        with patch('sys.argv', ['fetch_yfinance.py', '7203', '--outdir', './out/test_partial_data']):
+            # クリーンアップ
+            if os.path.exists('./out/test_partial_data'):
+                for f in os.listdir('./out/test_partial_data'):
+                    try:
+                        os.remove(os.path.join('./out/test_partial_data', f))
+                    except Exception:
+                        pass
+            
+            fetch_yfinance.main()
+            
+            # 株価や正常なBSは出力されるが、欠損しているPLやCFファイルは生成されずに正常終了することを確認
+            self.assertTrue(os.path.exists('./out/test_partial_data/7203.T.csv'))
+            self.assertTrue(os.path.exists('./out/test_partial_data/7203.T_annual_balance_sheet.csv'))
+            self.assertFalse(os.path.exists('./out/test_partial_data/7203.T_annual_income_stmt.csv'))
+            self.assertFalse(os.path.exists('./out/test_partial_data/7203.T_annual_cashflow.csv'))
+
 class TestFetchGasSheets(unittest.TestCase):
     
     @patch('requests.get')
