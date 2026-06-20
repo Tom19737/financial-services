@@ -31,8 +31,10 @@ def main():
     args = parse_args()
     ticker_str = args.ticker.strip()
     
-    # 日本株対応: 4桁の数値の場合は末尾に .T を付加
-    if ticker_str.isdigit() and len(ticker_str) == 4:
+    # 日本株対応: 4桁かつ先頭が数字（新証券コードなどの英数字混在を含む）の場合は末尾に .T を付加
+    # 例: "7203" -> "7203.T", "285A" -> "285A.T"
+    # ※ 米国の4桁ティッカー (MSFT等) は先頭が英字のため除外されます。
+    if len(ticker_str) == 4 and ticker_str[0].isdigit() and ticker_str.isalnum():
         ticker_str = f"{ticker_str}.T"
         print(f"Detected Japanese ticker code. Appended '.T': {ticker_str}")
         
