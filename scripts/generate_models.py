@@ -255,28 +255,78 @@ def create_dcf_model(ticker_data, outdir):
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 40
     
+    # Inputsシートを作成して前提条件を配置
+    ws_inputs = wb.create_sheet(title="Inputs")
+    ws_inputs.views.sheetView[0].showGridLines = True
+
+    # タイトル行 (Inputs)
+    ws_inputs.merge_cells("A1:C1")
+    ws_inputs["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - VALUATION INPUTS"
+    ws_inputs["A1"].font = title_font
+    ws_inputs["A1"].fill = primary_fill
+    ws_inputs["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws_inputs.row_dimensions[1].height = 40
+
+    ws_inputs.cell(row=3, column=1, value="Parameter").font = header_font
+    ws_inputs.cell(row=3, column=1).fill = primary_fill
+    ws_inputs.cell(row=3, column=2, value="Value").font = header_font
+    ws_inputs.cell(row=3, column=2).fill = primary_fill
+    ws_inputs.cell(row=3, column=3, value="Source / Note").font = header_font
+    ws_inputs.cell(row=3, column=3).fill = primary_fill
+    ws_inputs.row_dimensions[3].height = 25
+
+    rf_rate = 0.010 if is_jpy else 0.040
+    tax_rate = 0.306 if is_jpy else 0.210
+
+    inputs_data = [
+        ("Risk-Free Rate (10y Govt Bond)", rf_rate, "0.0%", f"[ASSUMPTION] 10y {'JGB' if is_jpy else 'US Treasury'} Yield"),
+        ("Equity Beta (vs market)", 1.20, "0.00", "[ASSUMPTION] Peer Beta"),
+        ("Equity Risk Premium", 0.060, "0.0%", "[ASSUMPTION] Market Risk Premium"),
+        ("Pre-tax Cost of Debt", 0.025 if is_jpy else 0.055, "0.0%", "[ASSUMPTION] Average Cost of Debt"),
+        ("Effective Tax Rate", tax_rate, "0.0%", "[ASSUMPTION] Statutory Tax Rate"),
+        ("Target Debt / (Debt + Equity)", 0.20, "0.0%", "[ASSUMPTION] Target Capital Structure"),
+        ("Terminal EV/EBITDA Multiple", 10.0, "0.0x", "[ASSUMPTION] Peer Trading Multiple"),
+        ("Perpetual Growth Rate (Gordon Growth)", 0.005 if is_jpy else 0.020, "0.0%", "[ASSUMPTION] Long-term GDP Growth")
+    ]
+
+    for idx, (label, val, fmt, src) in enumerate(inputs_data):
+        row = 4 + idx
+        ws_inputs.row_dimensions[row].height = 20
+        ws_inputs.cell(row=row, column=1, value=label).font = data_font
+        cell_val = ws_inputs.cell(row=row, column=2, value=val)
+        cell_val.font = input_font
+        cell_val.number_format = fmt
+        cell_val.alignment = Alignment(horizontal="right")
+        ws_inputs.cell(row=row, column=3, value=src).font = data_font
+
+        for col in range(1, 4):
+            ws_inputs.cell(row=row, column=col).border = thin_border
+
+    # Inputsシートの列幅調整
+    for col in ws_inputs.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws_inputs.column_dimensions[col_letter].width = max(max_len + 3, 14)
+
     # I. 前提条件セクション (WACC & Terminal Multiple)
     ws["A3"] = "I. VALUATION ASSUMPTIONS"
     ws["A3"].font = section_font
     ws.merge_cells("A3:C3")
     ws["A3"].fill = section_fill
     
-    rf_rate = 0.010 if is_jpy else 0.040
-    tax_rate = 0.306 if is_jpy else 0.210
-    
     assumptions = [
-        ("Risk-Free Rate (10y Govt Bond)", rf_rate, "0.0%"),
-        ("Equity Beta (vs market)", 1.20, "0.00"),
-        ("Equity Risk Premium", 0.060, "0.0%"),
+        ("Risk-Free Rate (10y Govt Bond)", "=Inputs!B4", "0.0%"),
+        ("Equity Beta (vs market)", "=Inputs!B5", "0.00"),
+        ("Equity Risk Premium", "=Inputs!B6", "0.0%"),
         ("Cost of Equity (CAPM)", "=B4+B5*B6", "0.0%"),
-        ("Pre-tax Cost of Debt", 0.025 if is_jpy else 0.055, "0.0%"),
-        ("Effective Tax Rate", tax_rate, "0.0%"),
+        ("Pre-tax Cost of Debt", "=Inputs!B7", "0.0%"),
+        ("Effective Tax Rate", "=Inputs!B8", "0.0%"),
         ("After-tax Cost of Debt", "=B8*(1-B9)", "0.0%"),
-        ("Target Debt / (Debt + Equity)", 0.20, "0.0%"),
+        ("Target Debt / (Debt + Equity)", "=Inputs!B9", "0.0%"),
         ("Target Equity / (Debt + Equity)", "=1-B11", "0.0%"),
         ("Weighted Average Cost of Capital (WACC)", "=B7*B12+B10*B11", "0.0%"),
-        ("Terminal EV/EBITDA Multiple", 10.0, "0.0x"),
-        ("Perpetual Growth Rate (Gordon Growth)", 0.005 if is_jpy else 0.020, "0.0%")
+        ("Terminal EV/EBITDA Multiple", "=Inputs!B10", "0.0x"),
+        ("Perpetual Growth Rate (Gordon Growth)", "=Inputs!B11", "0.0%")
     ]
     
     for idx, (label, val, fmt) in enumerate(assumptions):

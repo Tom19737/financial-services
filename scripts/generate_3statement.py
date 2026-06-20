@@ -34,6 +34,7 @@ def build_3statement_model(ticker_data, ticker_dir):
     section_fill = styles.section_fill
     highlight_fill = styles.highlight_fill
     thin_border_side = styles.thin_border_side
+    thin_border = styles.thin_border
     
     is_jpy = ticker_data["currency"] == "JPY"
     unit_str = "Bn JPY" if is_jpy else "Mn USD"
@@ -55,6 +56,141 @@ def build_3statement_model(ticker_data, ticker_dir):
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 40
     
+    # Inputsシートを作成して前提条件を配置
+    ws_inputs = wb.create_sheet(title="Inputs")
+    ws_inputs.views.sheetView[0].showGridLines = True
+
+    # タイトル行 (Inputs)
+    ws_inputs.merge_cells("A1:C1")
+    ws_inputs["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - 3-STATEMENT VALUATION INPUTS"
+    ws_inputs["A1"].font = title_font
+    ws_inputs["A1"].fill = primary_fill
+    ws_inputs["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws_inputs.row_dimensions[1].height = 40
+
+    ws_inputs.cell(row=3, column=1, value="Parameter").font = header_font
+    ws_inputs.cell(row=3, column=1).fill = primary_fill
+    ws_inputs.cell(row=3, column=2, value="Value").font = header_font
+    ws_inputs.cell(row=3, column=2).fill = primary_fill
+    ws_inputs.cell(row=3, column=3, value="Source / Note").font = header_font
+    ws_inputs.cell(row=3, column=3).fill = primary_fill
+    ws_inputs.row_dimensions[3].height = 25
+
+    inputs_data = [
+        # Revenue Growth
+        ("Revenue Growth FY25E", 0.12, "0.0%", "[ASSUMPTION]"),
+        ("Revenue Growth FY26E", 0.10, "0.0%", "[ASSUMPTION]"),
+        ("Revenue Growth FY27E", 0.08, "0.0%", "[ASSUMPTION]"),
+        ("Revenue Growth FY28E", 0.06, "0.0%", "[ASSUMPTION]"),
+        ("Revenue Growth FY29E", 0.05, "0.0%", "[ASSUMPTION]"),
+        ("Dummy", "", "", ""), # B9
+        # COGS % of Rev
+        ("COGS % of Revenue FY25E", 0.64, "0.0%", "[ASSUMPTION]"),
+        ("COGS % of Revenue FY26E", 0.63, "0.0%", "[ASSUMPTION]"),
+        ("COGS % of Revenue FY27E", 0.62, "0.0%", "[ASSUMPTION]"),
+        ("COGS % of Revenue FY28E", 0.62, "0.0%", "[ASSUMPTION]"),
+        ("COGS % of Revenue FY29E", 0.62, "0.0%", "[ASSUMPTION]"),
+        ("Dummy", "", "", ""), # B15
+        # SG&A % of Rev
+        ("SG&A % of Revenue FY25E", 0.145, "0.0%", "[ASSUMPTION]"),
+        ("SG&A % of Revenue FY26E", 0.14, "0.0%", "[ASSUMPTION]"),
+        ("SG&A % of Revenue FY27E", 0.14, "0.0%", "[ASSUMPTION]"),
+        ("SG&A % of Revenue FY28E", 0.14, "0.0%", "[ASSUMPTION]"),
+        ("SG&A % of Revenue FY29E", 0.14, "0.0%", "[ASSUMPTION]"),
+        ("Dummy", "", "", ""), # B21
+        # D&A % of Rev
+        ("D&A % of Revenue FY25E", 0.10, "0.0%", "[ASSUMPTION]"),
+        ("D&A % of Revenue FY26E", 0.10, "0.0%", "[ASSUMPTION]"),
+        ("D&A % of Revenue FY27E", 0.095, "0.0%", "[ASSUMPTION]"),
+        ("D&A % of Revenue FY28E", 0.09, "0.0%", "[ASSUMPTION]"),
+        ("D&A % of Revenue FY29E", 0.09, "0.0%", "[ASSUMPTION]"),
+        ("Dummy", "", "", ""), # B27
+        # Debt Interest Rate
+        ("Debt Interest Rate", 0.025, "0.0%", "[ASSUMPTION] Cost of Debt"),
+        ("Dummy", "", "", ""), # B29
+        # AR/Inv/AP % of Rev
+        ("Accounts Receivable % of Rev", 0.12, "0.0%", "[ASSUMPTION]"),
+        ("Inventory % of Rev", 0.17, "0.0%", "[ASSUMPTION]"),
+        ("Accounts Payable % of Rev", 0.08, "0.0%", "[ASSUMPTION]"),
+    ]
+
+    for idx, (label, val, fmt, src) in enumerate(inputs_data):
+        row = 4 + idx
+        ws_inputs.row_dimensions[row].height = 20
+        ws_inputs.cell(row=row, column=1, value=label).font = data_font
+        if val != "":
+            cell_val = ws_inputs.cell(row=row, column=2, value=val)
+            cell_val.font = input_font
+            cell_val.number_format = fmt
+            cell_val.alignment = Alignment(horizontal="right")
+        ws_inputs.cell(row=row, column=3, value=src).font = data_font
+        for col in range(1, 4):
+            ws_inputs.cell(row=row, column=col).border = thin_border
+
+    # CapEx Projections
+    ws_inputs.cell(row=38, column=1, value="CapEx Projections").font = bold_data_font
+    ws_inputs.cell(row=39, column=1, value="Year").font = header_font
+    ws_inputs.cell(row=39, column=1).fill = primary_fill
+    ws_inputs.cell(row=39, column=2, value="CapEx").font = header_font
+    ws_inputs.cell(row=39, column=2).fill = primary_fill
+    ws_inputs.cell(row=39, column=3, value="Source / Note").font = header_font
+    ws_inputs.cell(row=39, column=3).fill = primary_fill
+    ws_inputs.row_dimensions[39].height = 20
+
+    capex_inputs = [
+        ("FY25E", -300.0, "[ASSUMPTION]"),
+        ("FY26E", -320.0, "[ASSUMPTION]"),
+        ("FY27E", -310.0, "[ASSUMPTION]"),
+        ("FY28E", -300.0, "[ASSUMPTION]"),
+        ("FY29E", -300.0, "[ASSUMPTION]"),
+    ]
+    for idx, (yr, val, src) in enumerate(capex_inputs):
+        row = 40 + idx
+        ws_inputs.row_dimensions[row].height = 20
+        ws_inputs.cell(row=row, column=1, value=yr).font = data_font
+        cell_val = ws_inputs.cell(row=row, column=2, value=val)
+        cell_val.font = input_font
+        cell_val.number_format = "#,##0.0"
+        cell_val.alignment = Alignment(horizontal="right")
+        ws_inputs.cell(row=row, column=3, value=src).font = data_font
+        for col in range(1, 4):
+            ws_inputs.cell(row=row, column=col).border = thin_border
+
+    # Debt Drawdown / (Repayment)
+    ws_inputs.cell(row=46, column=1, value="Debt Drawdown / (Repayment)").font = bold_data_font
+    ws_inputs.cell(row=47, column=1, value="Year").font = header_font
+    ws_inputs.cell(row=47, column=1).fill = primary_fill
+    ws_inputs.cell(row=47, column=2, value="Drawdown").font = header_font
+    ws_inputs.cell(row=47, column=2).fill = primary_fill
+    ws_inputs.cell(row=47, column=3, value="Source / Note").font = header_font
+    ws_inputs.cell(row=47, column=3).fill = primary_fill
+    ws_inputs.row_dimensions[47].height = 20
+
+    debt_inputs = [
+        ("FY25E", 50.0, "[ASSUMPTION]"),
+        ("FY26E", -20.0, "[ASSUMPTION]"),
+        ("FY27E", -30.0, "[ASSUMPTION]"),
+        ("FY28E", -40.0, "[ASSUMPTION]"),
+        ("FY29E", -50.0, "[ASSUMPTION]"),
+    ]
+    for idx, (yr, val, src) in enumerate(debt_inputs):
+        row = 48 + idx
+        ws_inputs.row_dimensions[row].height = 20
+        ws_inputs.cell(row=row, column=1, value=yr).font = data_font
+        cell_val = ws_inputs.cell(row=row, column=2, value=val)
+        cell_val.font = input_font
+        cell_val.number_format = "#,##0.0"
+        cell_val.alignment = Alignment(horizontal="right")
+        ws_inputs.cell(row=row, column=3, value=src).font = data_font
+        for col in range(1, 4):
+            ws_inputs.cell(row=row, column=col).border = thin_border
+
+    # Inputsシートの列幅調整
+    for col in ws_inputs.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws_inputs.column_dimensions[col_letter].width = max(max_len + 3, 14)
+
     # ヘッダー
     headers = [f"Integrated Financial Model ({unit_str})", "FY24A", "FY25E", "FY26E", "FY27E", "FY28E", "FY29E"]
     for col_idx, header in enumerate(headers, 1):
@@ -73,15 +209,15 @@ def build_3statement_model(ticker_data, ticker_dir):
     tax_rate_ltm = tax_act / ebit_act if ebit_act > 0 else 0.306
     
     is_rows = [
-        ("Total Revenue", [rev_act, "=B6*1.12", "=C6*1.10", "=D6*1.08", "=E6*1.06", "=F6*1.05"]),
+        ("Total Revenue", [rev_act, "=B6*(1+Inputs!$B$4)", "=C6*(1+Inputs!$B$5)", "=D6*(1+Inputs!$B$6)", "=E6*(1+Inputs!$B$7)", "=F6*(1+Inputs!$B$8)"]),
         ("Revenue Growth", ["", "=(C6-B6)/B6", "=(D6-C6)/C6", "=(E6-D6)/D6", "=(F6-E6)/E6", "=(G6-F6)/F6"]),
-        ("Cost of Goods Sold (COGS)", [rev_act * 0.65, "=C6*0.64", "=D6*0.63", "=E6*0.62", "=F6*0.62", "=G6*0.62"]),
+        ("Cost of Goods Sold (COGS)", [rev_act * 0.65, "=C6*Inputs!$B$10", "=D6*Inputs!$B$11", "=E6*Inputs!$B$12", "=F6*Inputs!$B$13", "=G6*Inputs!$B$14"]),
         ("Gross Profit", ["=B6-B8", "=C6-C8", "=D6-D8", "=E6-E8", "=F6-F8", "=G6-G8"]),
-        ("SG&A Expenses", [rev_act * 0.15, "=C6*0.145", "=D6*0.14", "=E6*0.14", "=F6*0.14", "=G6*0.14"]),
+        ("SG&A Expenses", [rev_act * 0.15, "=C6*Inputs!$B$16", "=D6*Inputs!$B$17", "=E6*Inputs!$B$18", "=F6*Inputs!$B$19", "=G6*Inputs!$B$20"]),
         ("EBITDA", ["=B9-B10", "=C9-C10", "=D9-D10", "=E9-E10", "=F9-F10", "=G9-G10"]),
-        ("Depreciation & Amortization", [da_act, "=C6*0.10", "=D6*0.10", "=E6*0.095", "=F6*0.09", "=G6*0.09"]),
+        ("Depreciation & Amortization", [da_act, "=C6*Inputs!$B$22", "=D6*Inputs!$B$23", "=E6*Inputs!$B$24", "=F6*Inputs!$B$25", "=G6*Inputs!$B$26"]),
         ("EBIT (Operating Income)", ["=B11-B12", "=C11-C12", "=D11-D12", "=E11-E12", "=F11-F12", "=G11-G12"]),
-        ("Interest Expense", [15.0, "=AVERAGE(B28,C28)*0.025", "=AVERAGE(C28,D28)*0.025", "=AVERAGE(D28,E28)*0.025", "=AVERAGE(E28,F28)*0.025", "=AVERAGE(F28,G28)*0.025"]), # B/S Debtを参照
+        ("Interest Expense", [15.0, "=AVERAGE(B28,C28)*Inputs!$B$28", "=AVERAGE(C28,D28)*Inputs!$B$28", "=AVERAGE(D28,E28)*Inputs!$B$28", "=AVERAGE(E28,F28)*Inputs!$B$28", "=AVERAGE(F28,G28)*Inputs!$B$28"]), # B/S Debtを参照
         ("Pretax Income", ["=B13-B14", "=C13-C14", "=D13-D14", "=E13-E14", "=F13-F14", "=G13-G14"]), # C-1バグ修正: "=E13-D14" -> "=E13-E14"
         ("Income Taxes", [tax_act, f"=C15*{tax_rate_ltm:.4f}", f"=D15*{tax_rate_ltm:.4f}", f"=E15*{tax_rate_ltm:.4f}", f"=F15*{tax_rate_ltm:.4f}", f"=G15*{tax_rate_ltm:.4f}"]),
         ("Net Income", ["=B15-B16", "=C15-C16", "=D15-D16", "=E15-E16", "=F15-F16", "=G15-G16"])
@@ -91,13 +227,13 @@ def build_3statement_model(ticker_data, ticker_dir):
     bs_rows = [
         ("ASSETS", ["", "", "", "", "", ""]),
         ("Cash & Equivalents", [cash_act, "=B49", "=C49", "=D49", "=E49", "=F49"]), # CFの期末現金 (49行目)
-        ("Accounts Receivable", [rev_act * 0.12, "=C6*0.12", "=D6*0.12", "=E6*0.12", "=F6*0.12", "=G6*0.12"]),
-        ("Inventory", [rev_act * 0.18, "=C6*0.17", "=D6*0.17", "=E6*0.17", "=F6*0.17", "=G6*0.17"]),
+        ("Accounts Receivable", [rev_act * 0.12, "=C6*Inputs!$B$30", "=D6*Inputs!$B$30", "=E6*Inputs!$B$30", "=F6*Inputs!$B$30", "=G6*Inputs!$B$30"]),
+        ("Inventory", [rev_act * 0.18, "=C6*Inputs!$B$31", "=D6*Inputs!$B$31", "=E6*Inputs!$B$31", "=F6*Inputs!$B$31", "=G6*Inputs!$B$31"]),
         ("Property, Plant & Equipment (Net)", [1200.0, "=B24+C43-C12", "=C24+D43-D12", "=D24+E43-E12", "=E24+F43-F12", "=F24+G43-G12"]), # 前期PPE + CapEx(43行目) - D&A(12行目)
         ("Total Assets", ["=SUM(B21:B24)", "=SUM(C21:C24)", "=SUM(D21:D24)", "=SUM(E21:E24)", "=SUM(F21:F24)", "=SUM(G21:G24)"]),
         
         ("LIABILITIES & EQUITY", ["", "", "", "", "", ""]),
-        ("Accounts Payable", [rev_act * 0.08, "=C6*0.08", "=D6*0.08", "=E6*0.08", "=F6*0.08", "=G6*0.08"]),
+        ("Accounts Payable", [rev_act * 0.08, "=C6*Inputs!$B$32", "=D6*Inputs!$B$32", "=E6*Inputs!$B$32", "=F6*Inputs!$B$32", "=G6*Inputs!$B$32"]),
         ("Short-Term & Long-Term Debt", [debt_act, "=B28+C45", "=C28+D45", "=D28+E45", "=E28+F45", "=F28+G45"]), # 前期Debt + 借入純増減 (45行目)
         ("Total Liabilities", ["=B27+B28", "=C27+C28", "=D27+D28", "=E27+E28", "=F27+F28", "=G27+G28"]),
         
@@ -118,10 +254,10 @@ def build_3statement_model(ticker_data, ticker_dir):
         ("Plus: Change in Payables", ["", "=C27-B27", "=D27-C27", "=E27-D27", "=F27-E27", "=G27-F27"]),
         ("Operating Cash Flow (OCF)", ["=SUM(B37:B41)", "=SUM(C37:C41)", "=SUM(D37:D41)", "=SUM(E37:E41)", "=SUM(F37:F41)", "=SUM(G37:G41)"]),
         
-        ("Capital Expenditures (CapEx)", [-225.6, -300.0, -320.0, -310.0, -300.0, -300.0]),
+        ("Capital Expenditures (CapEx)", [-225.6, "=Inputs!$B$40", "=Inputs!$B$41", "=Inputs!$B$42", "=Inputs!$B$43", "=Inputs!$B$44"]),
         ("Investing Cash Flow (ICF)", ["=B43", "=C43", "=D43", "=E43", "=F43", "=G43"]),
         
-        ("Debt Drawdown / (Repayment)", [-324.3, 50.0, -20.0, -30.0, -40.0, -50.0]),
+        ("Debt Drawdown / (Repayment)", [-324.3, "=Inputs!$B$48", "=Inputs!$B$49", "=Inputs!$B$50", "=Inputs!$B$51", "=Inputs!$B$52"]),
         ("Financing Cash Flow (FCF)", ["=B45", "=C45", "=D45", "=E45", "=F45", "=G45"]),
         
         ("Net Change in Cash", ["=B42+B44+B46", "=C42+C44+C46", "=D42+D44+D46", "=E42+E44+E46", "=F42+F44+F46", "=G42+G44+G46"]),
