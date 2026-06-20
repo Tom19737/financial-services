@@ -60,14 +60,14 @@ Antigravity のワークスペース設定ディレクトリである `.agents/`
    - 上記の自動化ツールが利用できない場合のフォールバック。
 
 ### セットアップと実行方法
-無料データパイプラインを利用する際は、以下の手順で仮想環境と依存関係をセットアップします。
+以下の手順で仮想環境を作成し、`requirements.txt` を用いて一括で依存関係をインストールできます。
 
 ```bash
 # 1. 仮想環境の作成 (uv使用)
 uv venv
 
-# 2. 依存関係のインストール
-uv pip install yfinance pandas requests openpyxl
+# 2. 依存関係の一括インストール
+uv pip install -r requirements.txt   # もしくは pip install -r requirements.txt
 
 # 3. データの取得テスト
 .\.venv\Scripts\python scripts/fetch_yfinance.py 7203
@@ -75,16 +75,28 @@ uv pip install yfinance pandas requests openpyxl
 
 ---
 
-## 4. 使い方
+## 5. 付属スクリプト・ツールセット
 
-1. このフォルダを Antigravity のワークスペースとして開きます。
-2. 開いた時点で、`.agents/AGENTS.md` に記載されたルール（出典明記、ハードコード禁止等）が常時適用されます。
-3. チャットで `/` を入力すると、`/dcf` `/comps` `/earnings` `/agent-market-researcher` などのワークフローが候補に表示されます。
-4. 実行したいワークフローを選択し、指示（例: `トヨタ自動車 (7203) のDCFを作成して`）を入力します。
+本プロジェクトの [scripts/](scripts/) ディレクトリには、株式調査およびバリュエーションモデリングの一連の流れを自動化・デモ検証するための Python スクリプト群（全9ツール）が用意されています。
+
+### ① データ収集 & 整形 (Data Pipeline)
+- **[fetch_yfinance.py](scripts/fetch_yfinance.py)**: yfinanceから財務諸表CSVおよび株価データを自動収集。
+- **[clean_data.py](scripts/clean_data.py)**: `prices.csv` などの生データの重複排除、空白トリム、日付フォーマット標準化等のクレンジングを実行。
+
+### ② 財務バリュエーションモデル生成 (Financial Modeling)
+- **[generate_models.py](scripts/generate_models.py)**: データベース（CSV）から動的に数値をパースし、DCFおよびCompsのExcelモデルを自動生成。
+- **[generate_3statement.py](scripts/generate_3statement.py)**: 金利の循環参照を解決し、反復計算メタデータを付与した3表（PL/BS/CF）連動Excelモデルを自動生成。
+- **[generate_lbo.py](scripts/generate_lbo.py)**: PE投資シミュレーション用LBOモデルを自動生成（Debt返済キャッシュスイープ、倍率別感度分析）。
+- **[model_update.py](scripts/model_update.py)**: 前提変更（ガイダンス上方修正等）を自動反映して全モデルを再生成し、Valuationへの影響比較レポートをMarkdownで出力。
+
+### ③ プレゼンテーション・資料自動化 (Pitch Book Automation)
+- **[generate_pitch.py](scripts/generate_pitch.py)**: `python-pptx` を用いて、投資ピッチプレゼンテーション資料 (`.pptx`) を新規自動生成。
+- **[deck_refresh.py](scripts/deck_refresh.py)**: 既存のスライド内の数値（売上・EBITDAマージン等）を最新モデルの値へ自動置換更新（ロールフォワード）。
+- **[ib_check_deck.py](scripts/ib_check_deck.py)**: スライド上の数値が財務データベースと一致しているかを突合監査し、不整合を検出する品質チェック（QC）レポートを出力。
 
 ---
 
-## 5. 開発・改修フロー
+## 6. 開発・改修フロー
 
 本プロジェクトを変更する際は、以下のプロセスに従ってください：
 
@@ -102,5 +114,5 @@ uv pip install yfinance pandas requests openpyxl
 
 ---
 
-## 6. 留意事項
+## 7. 留意事項
 本プロジェクトが生成するモデル、メモ、リサーチノートはすべて**アナリスト用の草案（ドラフト）**です。最終的な数値検証、投資判断、自社に適用される規制の遵守は人間のレビューと自己責任に基づきます。

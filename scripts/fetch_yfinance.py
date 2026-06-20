@@ -9,7 +9,8 @@ def parse_args():
     parser.add_argument("ticker", type=str, help="Stock ticker (e.g. MSFT, 7203)")
     parser.add_argument("--period", type=str, default="1y", help="Data period for stock prices (e.g. 1d, 5d, 1mo, 1y)")
     parser.add_argument("--interval", type=str, default="1d", help="Data interval for stock prices (e.g. 1d, 1wk)")
-    parser.add_argument("--outdir", type=str, default="./out/market_data", help="Output directory")
+    parser.add_argument("--outdir", type=str, default="./out", help="Output directory")
+    parser.add_argument("--name", type=str, help="English company name to append to the folder (e.g. Toyota_Motor)")
     parser.add_argument("--skip-fundamentals", action="store_true", help="Skip fetching financial statements (PL/BS/CF)")
     return parser.parse_args()
 
@@ -49,21 +50,38 @@ def main():
             print(f"Error: No historical data found for {ticker_str}.", file=sys.stderr)
             sys.exit(1)
             
-        # ディレクトリ作成 (企業コードごとのフォルダ)
-        target_dir = os.path.join(args.outdir, ticker_str)
-        os.makedirs(target_dir, exist_ok=True)
-        
-        # 株価CSV出力
-        csv_path = os.path.join(target_dir, "prices.csv")
-        hist.to_csv(csv_path)
-        print(f"Saved historical stock prices to {csv_path}")
-        
         # 2. 会社基本情報（info）の取得（フォールバック付き）
         info_data = {}
         try:
             info_data = ticker.info
         except Exception as e:
             print(f"Warning: Failed to fetch ticker info: {e}", file=sys.stderr)
+            
+        # 英語会社名の決定とクリーンアップ
+        company_name = None
+        if args.name:
+            company_name = args.name.strip()
+        else:
+            company_name = info_data.get("longName") or info_data.get("shortName")
+            
+        if company_name:
+            import re
+            clean_name = re.sub(r'[^a-zA-Z0-9\s-]', '', company_name)
+            clean_name = re.sub(r'[\s-]+', '_', clean_name).strip('_')
+            folder_name = f"{ticker_str}_{clean_name}"
+        else:
+            folder_name = ticker_str
+            
+        print(f"Target folder name: {folder_name}")
+        
+        # ディレクトリ作成 (企業コードごとのフォルダ)
+        target_dir = os.path.join(args.outdir, folder_name, "market_data")
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # 株価CSV出力
+        csv_path = os.path.join(target_dir, "prices.csv")
+        hist.to_csv(csv_path)
+        print(f"Saved historical stock prices to {csv_path}")
             
         latest_price = float(hist['Close'].iloc[-1]) if not hist.empty else None
             
