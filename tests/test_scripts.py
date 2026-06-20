@@ -8,7 +8,6 @@ from unittest.mock import patch, MagicMock
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import scripts.fetch_yfinance as fetch_yfinance
-import scripts.fetch_gas_sheets as fetch_gas_sheets
 
 class TestFetchYFinance(unittest.TestCase):
     
@@ -128,69 +127,6 @@ class TestFetchYFinance(unittest.TestCase):
                 fetch_yfinance.main()
             self.assertEqual(cm.exception.code, 1)
 
-class TestFetchGasSheets(unittest.TestCase):
-    
-    @patch('requests.get')
-    def test_fetch_gas_sheets_success(self, mock_get):
-        # requests.getのレスポンスをモック
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "status": "success",
-            "sheetName": "GoogleFinanceData",
-            "rowCount": 1,
-            "data": [{"Ticker": "7203.T", "Close": 2776.5}]
-        }
-        mock_get.return_value = mock_response
-        
-        dummy_url = "https://script.google.com/macros/s/dummy/exec"
-        test_outfile = "./out/test_sheet_data.json"
-        
-        if os.path.exists(test_outfile):
-            os.remove(test_outfile)
-            
-        with patch('sys.argv', ['fetch_gas_sheets.py', dummy_url, '--outfile', test_outfile]):
-            fetch_gas_sheets.main()
-            
-            self.assertTrue(os.path.exists(test_outfile))
-            with open(test_outfile, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                self.assertEqual(data['status'], 'success')
-                self.assertEqual(data['data'][0]['Ticker'], '7203.T')
-
-    @patch('requests.get')
-    def test_fetch_gas_sheets_invalid_url(self, mock_get):
-        invalid_url = "http://invalid-url.com"
-        with patch('sys.argv', ['fetch_gas_sheets.py', invalid_url]):
-            with self.assertRaises(SystemExit) as cm:
-                fetch_gas_sheets.main()
-            self.assertEqual(cm.exception.code, 1)
-
-    @patch('requests.get')
-    def test_fetch_gas_sheets_http_error(self, mock_get):
-        # 404エラーを返すモック
-        mock_response = MagicMock()
-        mock_response.status_code = 404
-        mock_get.return_value = mock_response
-        
-        dummy_url = "https://script.google.com/macros/s/dummy/exec"
-        with patch('sys.argv', ['fetch_gas_sheets.py', dummy_url]):
-            with self.assertRaises(SystemExit) as cm:
-                fetch_gas_sheets.main()
-            self.assertEqual(cm.exception.code, 1)
-
-    @patch('requests.get')
-    def test_fetch_gas_sheets_invalid_json(self, mock_get):
-        # 不正なJSON(Value Error)を返すモック
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.side_effect = ValueError("No JSON object could be decoded")
-        mock_get.return_value = mock_response
-        
-        dummy_url = "https://script.google.com/macros/s/dummy/exec"
-        with patch('sys.argv', ['fetch_gas_sheets.py', dummy_url]):
-            with self.assertRaises(SystemExit) as cm:
-                fetch_gas_sheets.main()
             self.assertEqual(cm.exception.code, 1)
 
 if __name__ == '__main__':

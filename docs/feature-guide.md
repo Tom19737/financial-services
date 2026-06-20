@@ -55,8 +55,7 @@
 > **データ取得の優先順位（無料データパイプライン）**
 > 本プロジェクトにおける財務・株価データの取得は、以下の優先順位に従って動作します。
 > 1. **【第1優先】yfinance (Python)**: [fetch_yfinance.py](file:///d:/Programming/Application/financial-services/scripts/fetch_yfinance.py) を呼び出して株価・ヒストリカルデータ・財務諸表（PL/BS/CFの年次・四半期）を自動取得します。日本株の場合は4桁のコードから自動的に東証サフィックス `.T` を付加します。
-> 2. **【第2優先】GASスプレッドシート (Google Finance)**: [fetch_gas_sheets.py](file:///d:/Programming/Application/financial-services/scripts/fetch_gas_sheets.py) を呼び出してGoogleスプレッドシート上の蓄積データ（[gas_template.js](file:///d:/Programming/Application/financial-services/scripts/gas_template.js) を使用）からプル取得します（`yfinance` 失敗時、または明示的な指示がある場合に適用）。
-> 3. **【第3優先】有料データプロバイダ（MCP） / 手動Web検索**: 上記の自動パイプラインが利用できない場合のフォールバック。
+> 2. **【第2優先】有料データプロバイダ（MCP） / 手動Web検索**: `yfinance` 自動パイプラインが利用できない場合のフォールバック。
 
 ---
 
