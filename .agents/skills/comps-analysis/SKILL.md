@@ -23,14 +23,13 @@ description: |
 
 ## ⚠️ CRITICAL: Data Source Priority (READ FIRST)
 
-**ALWAYS follow this data source hierarchy:**
+**ALWAYS follow this data source hierarchy for stock and financial data:**
 
-1. **FIRST: Check for MCP data sources** - If S&P Kensho MCP, FactSet MCP, or Daloopa MCP are available, use them exclusively for financial and trading information
-2. **DO NOT use web search** if the above MCP data sources are available
-3. **ONLY if MCPs are unavailable:** Then use Bloomberg Terminal, SEC EDGAR filings, or other institutional sources
-4. **NEVER use web search as a primary data source** - it lacks the accuracy, audit trails, and reliability required for institutional-grade analysis
+1. **FIRST: Python library "yfinance"** - Use [fetch_yfinance.py](file:///d:/Programming/Application/financial-services/scripts/fetch_yfinance.py) to automatically retrieve stock prices, historical data, and financial statements (PL/BS/CF).
+2. **SECOND: Google Sheets / GAS** - If `yfinance` fails or if explicitly instructed by the user, use [fetch_gas_sheets.py](file:///d:/Programming/Application/financial-services/scripts/fetch_gas_sheets.py) to pull data accumulated via Google Apps Script (e.g. Google Finance functions) from the Google Spreadsheet.
+3. **THIRD: MCP / Web Search** - Only if the above automated tools are unavailable, fallback to S&P Kensho/FactSet MCP connectors or manual web search/document inspection.
 
-**Why this matters:** MCP sources provide verified, institutional-grade data with proper citations. Web search results can be outdated, inaccurate, or unreliable for financial analysis.
+**Why this matters:** Ensures consistent, automated, and free data retrieval with structured outputs (CSV/JSON) before resorting to manual search or paid services.
 
 ---
 

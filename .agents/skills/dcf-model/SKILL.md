@@ -81,9 +81,9 @@ These constraints apply throughout all DCF model building. Review before startin
 Fetch data from MCP servers, user provided data, and the web.
 
 **Data Sources Priority:**
-1. **MCP Servers** (if configured) - Structured financial data from providers like Daloopa
-2. **User-Provided Data** - Historical financials from their research
-3. **Web Search/Fetch** - Current prices, beta, debt and cash when needed
+1. **FIRST: Python library "yfinance"** - Use [fetch_yfinance.py](file:///d:/Programming/Application/financial-services/scripts/fetch_yfinance.py) to automatically retrieve stock prices, historical data, and financial statements (PL/BS/CF).
+2. **SECOND: Google Sheets / GAS** - If `yfinance` fails or if explicitly instructed by the user, use [fetch_gas_sheets.py](file:///d:/Programming/Application/financial-services/scripts/fetch_gas_sheets.py) to pull data accumulated via Google Apps Script (e.g. Google Finance functions) from the Google Spreadsheet.
+3. **THIRD: MCP / Web Search** - Only if the above automated tools are unavailable, fallback to S&P Kensho/FactSet MCP connectors or manual web search/document inspection.
 
 **Validation Checklist:**
 - Verify net debt vs net cash (critical for valuation)
