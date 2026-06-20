@@ -114,6 +114,20 @@ class TestFetchYFinance(unittest.TestCase):
             self.assertFalse(os.path.exists('./out/test_partial_data/7203.T_annual_income_stmt.csv'))
             self.assertFalse(os.path.exists('./out/test_partial_data/7203.T_annual_cashflow.csv'))
 
+    @patch('yfinance.Ticker')
+    def test_fetch_yfinance_invalid_ticker(self, mock_ticker):
+        # Tickerのモック設定（historyが空）
+        mock_instance = MagicMock()
+        mock_ticker.return_value = mock_instance
+        
+        import pandas as pd
+        mock_instance.history.return_value = pd.DataFrame()
+        
+        with patch('sys.argv', ['fetch_yfinance.py', 'INVALID_TICKER']):
+            with self.assertRaises(SystemExit) as cm:
+                fetch_yfinance.main()
+            self.assertEqual(cm.exception.code, 1)
+
 class TestFetchGasSheets(unittest.TestCase):
     
     @patch('requests.get')
@@ -148,6 +162,33 @@ class TestFetchGasSheets(unittest.TestCase):
     def test_fetch_gas_sheets_invalid_url(self, mock_get):
         invalid_url = "http://invalid-url.com"
         with patch('sys.argv', ['fetch_gas_sheets.py', invalid_url]):
+            with self.assertRaises(SystemExit) as cm:
+                fetch_gas_sheets.main()
+            self.assertEqual(cm.exception.code, 1)
+
+    @patch('requests.get')
+    def test_fetch_gas_sheets_http_error(self, mock_get):
+        # 404エラーを返すモック
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+        
+        dummy_url = "https://script.google.com/macros/s/dummy/exec"
+        with patch('sys.argv', ['fetch_gas_sheets.py', dummy_url]):
+            with self.assertRaises(SystemExit) as cm:
+                fetch_gas_sheets.main()
+            self.assertEqual(cm.exception.code, 1)
+
+    @patch('requests.get')
+    def test_fetch_gas_sheets_invalid_json(self, mock_get):
+        # 不正なJSON(Value Error)を返すモック
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("No JSON object could be decoded")
+        mock_get.return_value = mock_response
+        
+        dummy_url = "https://script.google.com/macros/s/dummy/exec"
+        with patch('sys.argv', ['fetch_gas_sheets.py', dummy_url]):
             with self.assertRaises(SystemExit) as cm:
                 fetch_gas_sheets.main()
             self.assertEqual(cm.exception.code, 1)
