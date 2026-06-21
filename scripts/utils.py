@@ -3,6 +3,7 @@ import sys
 import glob
 import json
 import logging
+from typing import Dict, Any, Optional
 from openpyxl.styles import Font, PatternFill, Border, Side
 
 # pandas のインポートチェック
@@ -12,8 +13,15 @@ except ImportError:
     print("Error: pandas is required. Please install it in the virtual environment.", file=sys.stderr)
     sys.exit(1)
 
-def setup_logging(name=None):
-    """標準的なロギングを設定する"""
+def setup_logging(name: Optional[str] = None) -> logging.Logger:
+    """標準的なロギングを設定する。
+
+    Args:
+        name: ロガーの名前。指定がない場合はデフォルトロガー。
+
+    Returns:
+        設定済みの Logger インスタンス。
+    """
     logger = logging.getLogger(name or "financial_services")
     if not logger.handlers:
         logger.setLevel(logging.INFO)
@@ -25,8 +33,15 @@ def setup_logging(name=None):
 
 logger = setup_logging()
 
-def normalize_ticker(ticker_str):
-    """日本株の4桁の数字ティッカーに自動で '.T' を付与して正規化する"""
+def normalize_ticker(ticker_str: str) -> str:
+    """日本株の4桁の数字ティッカーに自動で '.T' を付与して正規化する。
+
+    Args:
+        ticker_str: 入力ティッカー文字列（例: "7203", "MSFT"）
+
+    Returns:
+        正規化されたティッカー文字列（例: "7203.T", "MSFT"）
+    """
     if not ticker_str:
         return ""
     ticker_str = ticker_str.strip()
@@ -34,8 +49,16 @@ def normalize_ticker(ticker_str):
         return f"{ticker_str}.T"
     return ticker_str
 
-def find_ticker_dir(base_dir, ticker_str):
-    """base_dir配下から、ticker_strで始まるティッカーフォルダを動的に探索する"""
+def find_ticker_dir(base_dir: str, ticker_str: str) -> str:
+    """base_dir配下から、ticker_strで始まるティッカーフォルダを動的に探索する。
+
+    Args:
+        base_dir: 探索先のベースディレクトリパス
+        ticker_str: 対象ティッカーコード
+
+    Returns:
+        見つかったフォルダの絶対パス。見つからない場合は想定されるパス。
+    """
     normalized = normalize_ticker(ticker_str)
     pattern = os.path.join(base_dir, f"{normalized}*")
     matches = glob.glob(pattern)
@@ -47,8 +70,16 @@ def find_ticker_dir(base_dir, ticker_str):
         return dirs[0]
     return os.path.join(base_dir, normalized)
 
-def get_latest_financial_data(ticker_dir, ticker_str):
-    """CSVおよびJSONから実績データを読み込み、辞書として返す"""
+def get_latest_financial_data(ticker_dir: str, ticker_str: str) -> Dict[str, Any]:
+    """CSVおよびJSONから実績データを読み込み、辞書として返す。
+
+    Args:
+        ticker_dir: 企業データディレクトリパス
+        ticker_str: 企業ティッカー
+
+    Returns:
+        財務実績データが格納された辞書。
+    """
     normalized = normalize_ticker(ticker_str)
     
     # 必須ファイルの存在確認。存在しない場合は例外を発生させる
@@ -59,7 +90,7 @@ def get_latest_financial_data(ticker_dir, ticker_str):
     if not os.path.exists(summary_path) or not os.path.exists(inc_path) or not os.path.exists(bs_path):
         raise FileNotFoundError(f"Required financial data is missing in {ticker_dir}. Please run fetch_yfinance.py first.")
 
-    data = {
+    data: Dict[str, Any] = {
         "ticker": normalized,
         "name": normalized,
         "currency": "JPY" if normalized.endswith(".T") else "USD",
@@ -97,7 +128,7 @@ def get_latest_financial_data(ticker_dir, ticker_str):
                 data["market_cap"] /= 100
                 
     # ヘルパー関数: 安全に値を取得する
-    def get_val(df, index_names, col):
+    def get_val(df: pd.DataFrame, index_names: list, col: str) -> float:
         for name in index_names:
             if name in df.index:
                 val = df.loc[name, col]
@@ -108,7 +139,7 @@ def get_latest_financial_data(ticker_dir, ticker_str):
         return 0.0
 
     # 有効なデータが入っている最初の列を探すヘルパー
-    def get_latest_actual_col(df, index_names):
+    def get_latest_actual_col(df: pd.DataFrame, index_names: list) -> str:
         for name in index_names:
             if name in df.index:
                 for col in df.columns:
@@ -116,8 +147,8 @@ def get_latest_financial_data(ticker_dir, ticker_str):
                     if isinstance(val, pd.Series):
                         val = val.iloc[0]
                     if pd.notna(val) and val != 0:
-                        return col
-        return df.columns[0]
+                        return str(col)
+        return str(df.columns[0])
 
     # 2. annual_income_stmt.csv
     df_inc = pd.read_csv(inc_path, index_col=0)
@@ -150,7 +181,14 @@ def get_latest_financial_data(ticker_dir, ticker_str):
     return data
 
 class ExcelStyles:
-    def __init__(self, font_family="Outfit"):
+    """Excelのワークブックで共通して使用する装飾スタイルを管理するクラス。"""
+    
+    def __init__(self, font_family: str = "Outfit") -> None:
+        """スタイルオブジェクトの初期化。
+
+        Args:
+            font_family: 使用するフォント名（デフォルト Outfit）
+        """
         self.font_family = font_family
         self.title_font = Font(name=font_family, size=16, bold=True, color="FFFFFF")
         self.header_font = Font(name=font_family, size=11, bold=True, color="FFFFFF")
@@ -169,8 +207,15 @@ class ExcelStyles:
         self.thin_border_side = Side(style='thin', color='CBD5E1')
         self.thin_border = Border(left=self.thin_border_side, right=self.thin_border_side, top=self.thin_border_side, bottom=self.thin_border_side)
 
-def sanitize_folder_name(name):
-    """ファイル名やフォルダ名に使用できるように名前をサニタイズする"""
+def sanitize_folder_name(name: Optional[str]) -> str:
+    """ファイル名やフォルダ名に使用できるように名前をサニタイズする。
+
+    Args:
+        name: サニタイズ対象の文字列。
+
+    Returns:
+        サニタイズされた安全な文字列。
+    """
     if not name:
         return "Unknown"
     import re

@@ -16,8 +16,8 @@ def clean_prices(ticker_dir):
     df = pd.read_csv(prices_path)
     
     # 検出された問題の出力
-    print("=== Data Cleaning Report (clean-data-xls) ===")
-    print(f"Total Rows: {len(df)}")
+    logger.info("=== Data Cleaning Report (clean-data-xls) ===")
+    logger.info(f"Total Rows: {len(df)}")
     
     # 1. 空白トリム
     df.columns = df.columns.str.strip()
@@ -27,7 +27,7 @@ def clean_prices(ticker_dir):
     # 2. 日付形式の標準化 (YYYY-MM-DD)
     # yfinance特有のタイムゾーン表記を削除し正規化
     if 'Date' in df.columns:
-        print("  -> Normalizing Date column to YYYY-MM-DD...")
+        logger.info("  -> Normalizing Date column to YYYY-MM-DD...")
         df['Date'] = pd.to_datetime(df['Date']).dt.strftime('%Y-%m-%d')
         
     # 3. 重複行の削除
@@ -35,9 +35,9 @@ def clean_prices(ticker_dir):
     df.drop_duplicates(inplace=True)
     dup_removed = initial_len - len(df)
     if dup_removed > 0:
-        print(f"  -> Removed {dup_removed} duplicate rows.")
+        logger.info(f"  -> Removed {dup_removed} duplicate rows.")
     else:
-        print("  -> No duplicate rows detected.")
+        logger.info("  -> No duplicate rows detected.")
         
     # 4. 数値列の確認（欠損値や不正値の処理）
     numeric_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
@@ -46,13 +46,13 @@ def clean_prices(ticker_dir):
             df[col] = pd.to_numeric(df[col], errors='coerce')
             null_count = df[col].isnull().sum()
             if null_count > 0:
-                print(f"  -> Found {null_count} null/corrupted values in {col}. Interpolating...")
+                logger.info(f"  -> Found {null_count} null/corrupted values in {col}. Interpolating...")
                 df[col] = df[col].interpolate()
                 
     # 保存
     df.to_csv(prices_path, index=False)
     logger.info(f"Cleaned data saved back to {prices_path}")
-    print("=== Cleaning Complete ===\n")
+    logger.info("=== Cleaning Complete ===\n")
 
 def main():
     parser = argparse.ArgumentParser(description="Clean up prices.csv data")
