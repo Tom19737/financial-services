@@ -27,6 +27,10 @@ Use `skill: "comps-analysis"` to build the analysis:
    - Similar scale/market cap range
    - Same industry/sector
    - Geographic comparability
+   - *Tip*: You can use the [yfinance-screener](../yfinance-screener/SKILL.md) skill to automatically list candidate peers in the same sector and industry. For example:
+     ```bash
+     .venv\Scripts\python scripts/yfinance_screener.py --region jp --sector "Technology" --industry "Semiconductors" --count 10
+     ```
 
 3. **Gather data** (prioritize MCP sources if available):
    - Operating metrics: Revenue, Growth, Gross Margin, EBITDA, EBITDA Margin

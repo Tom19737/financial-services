@@ -19,6 +19,19 @@ Ask the user for parameters:
 
 ### Step 2: Quantitative Screens
 
+To automate the initial filtering process, load the [yfinance-screener](../yfinance-screener/SKILL.md) skill and run the `yfinance_screener.py` script to generate a list of candidate symbols.
+
+#### Automating with yfinance_screener.py
+
+* **Value Screening (JP)**:
+  ```bash
+  .venv\Scripts\python scripts/yfinance_screener.py --region jp --max-pe 15 --count 10 --format csv --output out/screener/value_screen.csv
+  ```
+* **Growth Screening (JP - Technology Sector)**:
+  ```bash
+  .venv\Scripts\python scripts/yfinance_screener.py --region jp --sector "Technology" --min-market-cap 500000000000 --count 10 --format csv --output out/screener/growth_tech.csv
+  ```
+
 Run screens based on the style:
 
 **Value Screen**
