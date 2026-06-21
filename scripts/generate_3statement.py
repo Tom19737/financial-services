@@ -5,6 +5,7 @@ from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 import os
 import sys
 import argparse
+import re
 from utils import find_ticker_dir, get_latest_financial_data, ExcelStyles, setup_logging
 
 logger = setup_logging("generate_3statement")
@@ -83,36 +84,38 @@ def build_3statement_model(ticker_data, ticker_dir):
         ("Revenue Growth FY27E", 0.08, "0.0%", "[ASSUMPTION]"),
         ("Revenue Growth FY28E", 0.06, "0.0%", "[ASSUMPTION]"),
         ("Revenue Growth FY29E", 0.05, "0.0%", "[ASSUMPTION]"),
-        ("Dummy", "", "", ""), # B9
+        ("Dummy", "", "", ""), # Row 9
         # COGS % of Rev
         ("COGS % of Revenue FY25E", 0.64, "0.0%", "[ASSUMPTION]"),
         ("COGS % of Revenue FY26E", 0.63, "0.0%", "[ASSUMPTION]"),
         ("COGS % of Revenue FY27E", 0.62, "0.0%", "[ASSUMPTION]"),
         ("COGS % of Revenue FY28E", 0.62, "0.0%", "[ASSUMPTION]"),
         ("COGS % of Revenue FY29E", 0.62, "0.0%", "[ASSUMPTION]"),
-        ("Dummy", "", "", ""), # B15
+        ("Dummy", "", "", ""), # Row 15
         # SG&A % of Rev
         ("SG&A % of Revenue FY25E", 0.145, "0.0%", "[ASSUMPTION]"),
         ("SG&A % of Revenue FY26E", 0.14, "0.0%", "[ASSUMPTION]"),
         ("SG&A % of Revenue FY27E", 0.14, "0.0%", "[ASSUMPTION]"),
         ("SG&A % of Revenue FY28E", 0.14, "0.0%", "[ASSUMPTION]"),
         ("SG&A % of Revenue FY29E", 0.14, "0.0%", "[ASSUMPTION]"),
-        ("Dummy", "", "", ""), # B21
+        ("Dummy", "", "", ""), # Row 21
         # D&A % of Rev
         ("D&A % of Revenue FY25E", 0.10, "0.0%", "[ASSUMPTION]"),
         ("D&A % of Revenue FY26E", 0.10, "0.0%", "[ASSUMPTION]"),
         ("D&A % of Revenue FY27E", 0.095, "0.0%", "[ASSUMPTION]"),
         ("D&A % of Revenue FY28E", 0.09, "0.0%", "[ASSUMPTION]"),
         ("D&A % of Revenue FY29E", 0.09, "0.0%", "[ASSUMPTION]"),
-        ("Dummy", "", "", ""), # B27
+        ("Dummy", "", "", ""), # Row 27
         # Debt Interest Rate
         ("Debt Interest Rate", 0.025, "0.0%", "[ASSUMPTION] Cost of Debt"),
-        ("Dummy", "", "", ""), # B29
+        ("Dummy", "", "", ""), # Row 29
         # AR/Inv/AP % of Rev
         ("Accounts Receivable % of Rev", 0.12, "0.0%", "[ASSUMPTION]"),
         ("Inventory % of Rev", 0.17, "0.0%", "[ASSUMPTION]"),
         ("Accounts Payable % of Rev", 0.08, "0.0%", "[ASSUMPTION]"),
     ]
+
+    inputs_map = {}
 
     for idx, (label, val, fmt, src) in enumerate(inputs_data):
         row = 4 + idx
@@ -123,6 +126,7 @@ def build_3statement_model(ticker_data, ticker_dir):
             cell_val.font = input_font
             cell_val.number_format = fmt
             cell_val.alignment = Alignment(horizontal="right")
+            inputs_map[label] = f"Inputs!$B${row}"
         ws_inputs.cell(row=row, column=3, value=src).font = data_font
         for col in range(1, 4):
             ws_inputs.cell(row=row, column=col).border = thin_border
@@ -153,6 +157,7 @@ def build_3statement_model(ticker_data, ticker_dir):
         cell_val.number_format = "#,##0.0"
         cell_val.alignment = Alignment(horizontal="right")
         ws_inputs.cell(row=row, column=3, value=src).font = data_font
+        inputs_map[f"CapEx {yr}"] = f"Inputs!$B${row}"
         for col in range(1, 4):
             ws_inputs.cell(row=row, column=col).border = thin_border
 
@@ -182,6 +187,7 @@ def build_3statement_model(ticker_data, ticker_dir):
         cell_val.number_format = "#,##0.0"
         cell_val.alignment = Alignment(horizontal="right")
         ws_inputs.cell(row=row, column=3, value=src).font = data_font
+        inputs_map[f"Debt Drawdown {yr}"] = f"Inputs!$B${row}"
         for col in range(1, 4):
             ws_inputs.cell(row=row, column=col).border = thin_border
 
@@ -209,62 +215,128 @@ def build_3statement_model(ticker_data, ticker_dir):
     tax_rate_ltm = tax_act / ebit_act if ebit_act > 0 else 0.306
     
     is_rows = [
-        ("Total Revenue", [rev_act, "=B6*(1+Inputs!$B$4)", "=C6*(1+Inputs!$B$5)", "=D6*(1+Inputs!$B$6)", "=E6*(1+Inputs!$B$7)", "=F6*(1+Inputs!$B$8)"]),
-        ("Revenue Growth", ["", "=(C6-B6)/B6", "=(D6-C6)/C6", "=(E6-D6)/D6", "=(F6-E6)/E6", "=(G6-F6)/F6"]),
-        ("Cost of Goods Sold (COGS)", [rev_act * 0.65, "=C6*Inputs!$B$10", "=D6*Inputs!$B$11", "=E6*Inputs!$B$12", "=F6*Inputs!$B$13", "=G6*Inputs!$B$14"]),
-        ("Gross Profit", ["=B6-B8", "=C6-C8", "=D6-D8", "=E6-E8", "=F6-F8", "=G6-G8"]),
-        ("SG&A Expenses", [rev_act * 0.15, "=C6*Inputs!$B$16", "=D6*Inputs!$B$17", "=E6*Inputs!$B$18", "=F6*Inputs!$B$19", "=G6*Inputs!$B$20"]),
-        ("EBITDA", ["=B9-B10", "=C9-C10", "=D9-D10", "=E9-E10", "=F9-F10", "=G9-G10"]),
-        ("Depreciation & Amortization", [da_act, "=C6*Inputs!$B$22", "=D6*Inputs!$B$23", "=E6*Inputs!$B$24", "=F6*Inputs!$B$25", "=G6*Inputs!$B$26"]),
-        ("EBIT (Operating Income)", ["=B11-B12", "=C11-C12", "=D11-D12", "=E11-E12", "=F11-F12", "=G11-G12"]),
-        ("Interest Expense", [15.0, "=AVERAGE(B28,C28)*Inputs!$B$28", "=AVERAGE(C28,D28)*Inputs!$B$28", "=AVERAGE(D28,E28)*Inputs!$B$28", "=AVERAGE(E28,F28)*Inputs!$B$28", "=AVERAGE(F28,G28)*Inputs!$B$28"]), # B/S Debtを参照
-        ("Pretax Income", ["=B13-B14", "=C13-C14", "=D13-D14", "=E13-E14", "=F13-F14", "=G13-G14"]), # C-1バグ修正: "=E13-D14" -> "=E13-E14"
-        ("Income Taxes", [tax_act, f"=C15*{tax_rate_ltm:.4f}", f"=D15*{tax_rate_ltm:.4f}", f"=E15*{tax_rate_ltm:.4f}", f"=F15*{tax_rate_ltm:.4f}", f"=G15*{tax_rate_ltm:.4f}"]),
-        ("Net Income", ["=B15-B16", "=C15-C16", "=D15-D16", "=E15-E16", "=F15-F16", "=G15-G16"])
+        ("Total Revenue", [rev_act, "=B{row}*(1+{Inputs:Revenue Growth FY25E})", "=C{row}*(1+{Inputs:Revenue Growth FY26E})", "=D{row}*(1+{Inputs:Revenue Growth FY27E})", "=E{row}*(1+{Inputs:Revenue Growth FY28E})", "=F{row}*(1+{Inputs:Revenue Growth FY29E})"]),
+        ("Revenue Growth", ["", "=(C{Total Revenue}-B{Total Revenue})/B{Total Revenue}", "=(D{Total Revenue}-C{Total Revenue})/C{Total Revenue}", "=(E{Total Revenue}-D{Total Revenue})/D{Total Revenue}", "=(F{Total Revenue}-E{Total Revenue})/E{Total Revenue}", "=(G{Total Revenue}-F{Total Revenue})/F{Total Revenue}"]),
+        ("Cost of Goods Sold (COGS)", [rev_act * 0.65, "=C{Total Revenue}*{Inputs:COGS % of Revenue FY25E}", "=D{Total Revenue}*{Inputs:COGS % of Revenue FY26E}", "=E{Total Revenue}*{Inputs:COGS % of Revenue FY27E}", "=F{Total Revenue}*{Inputs:COGS % of Revenue FY28E}", "=G{Total Revenue}*{Inputs:COGS % of Revenue FY29E}"]),
+        ("Gross Profit", ["=B{Total Revenue}-B{Cost of Goods Sold (COGS)}", "=C{Total Revenue}-C{Cost of Goods Sold (COGS)}", "=D{Total Revenue}-D{Cost of Goods Sold (COGS)}", "=E{Total Revenue}-E{Cost of Goods Sold (COGS)}", "=F{Total Revenue}-F{Cost of Goods Sold (COGS)}", "=G{Total Revenue}-G{Cost of Goods Sold (COGS)}"]),
+        ("SG&A Expenses", [rev_act * 0.15, "=C{Total Revenue}*{Inputs:SG&A % of Revenue FY25E}", "=D{Total Revenue}*{Inputs:SG&A % of Revenue FY26E}", "=E{Total Revenue}*{Inputs:SG&A % of Revenue FY27E}", "=F{Total Revenue}*{Inputs:SG&A % of Revenue FY28E}", "=G{Total Revenue}*{Inputs:SG&A % of Revenue FY29E}"]),
+        ("EBITDA", ["=B{Gross Profit}-B{SG&A Expenses}", "=C{Gross Profit}-C{SG&A Expenses}", "=D{Gross Profit}-D{SG&A Expenses}", "=E{Gross Profit}-E{SG&A Expenses}", "=F{Gross Profit}-F{SG&A Expenses}", "=G{Gross Profit}-G{SG&A Expenses}"]),
+        ("Depreciation & Amortization", [da_act, "=C{Total Revenue}*{Inputs:D&A % of Revenue FY25E}", "=D{Total Revenue}*{Inputs:D&A % of Revenue FY26E}", "=E{Total Revenue}*{Inputs:D&A % of Revenue FY27E}", "=F{Total Revenue}*{Inputs:D&A % of Revenue FY28E}", "=G{Total Revenue}*{Inputs:D&A % of Revenue FY29E}"]),
+        ("EBIT (Operating Income)", ["=B{EBITDA}-B{Depreciation & Amortization}", "=C{EBITDA}-C{Depreciation & Amortization}", "=D{EBITDA}-D{Depreciation & Amortization}", "=E{EBITDA}-E{Depreciation & Amortization}", "=F{EBITDA}-F{Depreciation & Amortization}", "=G{EBITDA}-G{Depreciation & Amortization}"]),
+        ("Interest Expense", [15.0, "=AVERAGE(B{Short-Term & Long-Term Debt},C{Short-Term & Long-Term Debt})*{Inputs:Debt Interest Rate}", "=AVERAGE(C{Short-Term & Long-Term Debt},D{Short-Term & Long-Term Debt})*{Inputs:Debt Interest Rate}", "=AVERAGE(D{Short-Term & Long-Term Debt},E{Short-Term & Long-Term Debt})*{Inputs:Debt Interest Rate}", "=AVERAGE(E{Short-Term & Long-Term Debt},F{Short-Term & Long-Term Debt})*{Inputs:Debt Interest Rate}", "=AVERAGE(F{Short-Term & Long-Term Debt},G{Short-Term & Long-Term Debt})*{Inputs:Debt Interest Rate}"]),
+        ("Pretax Income", ["=B{EBIT (Operating Income)}-B{Interest Expense}", "=C{EBIT (Operating Income)}-C{Interest Expense}", "=D{EBIT (Operating Income)}-D{Interest Expense}", "=E{EBIT (Operating Income)}-E{Interest Expense}", "=F{EBIT (Operating Income)}-F{Interest Expense}", "=G{EBIT (Operating Income)}-G{Interest Expense}"]),
+        ("Income Taxes", [tax_act, f"=C{{Pretax Income}}*{tax_rate_ltm:.4f}", f"=D{{Pretax Income}}*{tax_rate_ltm:.4f}", f"=E{{Pretax Income}}*{tax_rate_ltm:.4f}", f"=F{{Pretax Income}}*{tax_rate_ltm:.4f}", f"=G{{Pretax Income}}*{tax_rate_ltm:.4f}"]),
+        ("Net Income", ["=B{Pretax Income}-B{Income Taxes}", "=C{Pretax Income}-C{Income Taxes}", "=D{Pretax Income}-D{Income Taxes}", "=E{Pretax Income}-E{Income Taxes}", "=F{Pretax Income}-F{Income Taxes}", "=G{Pretax Income}-G{Income Taxes}"])
     ]
     
     # 2. 貸借対照表 (Balance Sheet)
     bs_rows = [
         ("ASSETS", ["", "", "", "", "", ""]),
-        ("Cash & Equivalents", [cash_act, "=B49", "=C49", "=D49", "=E49", "=F49"]), # CFの期末現金 (49行目)
-        ("Accounts Receivable", [rev_act * 0.12, "=C6*Inputs!$B$30", "=D6*Inputs!$B$30", "=E6*Inputs!$B$30", "=F6*Inputs!$B$30", "=G6*Inputs!$B$30"]),
-        ("Inventory", [rev_act * 0.18, "=C6*Inputs!$B$31", "=D6*Inputs!$B$31", "=E6*Inputs!$B$31", "=F6*Inputs!$B$31", "=G6*Inputs!$B$31"]),
-        ("Property, Plant & Equipment (Net)", [1200.0, "=B24+C43-C12", "=C24+D43-D12", "=D24+E43-E12", "=E24+F43-F12", "=F24+G43-G12"]), # 前期PPE + CapEx(43行目) - D&A(12行目)
-        ("Total Assets", ["=SUM(B21:B24)", "=SUM(C21:C24)", "=SUM(D21:D24)", "=SUM(E21:E24)", "=SUM(F21:F24)", "=SUM(G21:G24)"]),
+        ("Cash & Equivalents", [cash_act, "=B{Ending Cash Balance}", "=C{Ending Cash Balance}", "=D{Ending Cash Balance}", "=E{Ending Cash Balance}", "=F{Ending Cash Balance}"]),
+        ("Accounts Receivable", [rev_act * 0.12, "=C{Total Revenue}*{Inputs:Accounts Receivable % of Rev}", "=D{Total Revenue}*{Inputs:Accounts Receivable % of Rev}", "=E{Total Revenue}*{Inputs:Accounts Receivable % of Rev}", "=F{Total Revenue}*{Inputs:Accounts Receivable % of Rev}", "=G{Total Revenue}*{Inputs:Accounts Receivable % of Rev}"]),
+        ("Inventory", [rev_act * 0.18, "=C{Total Revenue}*{Inputs:Inventory % of Rev}", "=D{Total Revenue}*{Inputs:Inventory % of Rev}", "=E{Total Revenue}*{Inputs:Inventory % of Rev}", "=F{Total Revenue}*{Inputs:Inventory % of Rev}", "=G{Total Revenue}*{Inputs:Inventory % of Rev}"]),
+        ("Property, Plant & Equipment (Net)", [1200.0, "=B{row}+C{Capital Expenditures (CapEx)}-C{Depreciation & Amortization}", "=C{row}+D{Capital Expenditures (CapEx)}-D{Depreciation & Amortization}", "=D{row}+E{Capital Expenditures (CapEx)}-E{Depreciation & Amortization}", "=E{row}+F{Capital Expenditures (CapEx)}-F{Depreciation & Amortization}", "=F{row}+G{Capital Expenditures (CapEx)}-G{Depreciation & Amortization}"]),
+        ("Total Assets", ["=SUM(B{Cash & Equivalents}:B{Property, Plant & Equipment (Net)})", "=SUM(C{Cash & Equivalents}:C{Property, Plant & Equipment (Net)})", "=SUM(D{Cash & Equivalents}:D{Property, Plant & Equipment (Net)})", "=SUM(E{Cash & Equivalents}:E{Property, Plant & Equipment (Net)})", "=SUM(F{Cash & Equivalents}:F{Property, Plant & Equipment (Net)})", "=SUM(G{Cash & Equivalents}:G{Property, Plant & Equipment (Net)})"]),
         
         ("LIABILITIES & EQUITY", ["", "", "", "", "", ""]),
-        ("Accounts Payable", [rev_act * 0.08, "=C6*Inputs!$B$32", "=D6*Inputs!$B$32", "=E6*Inputs!$B$32", "=F6*Inputs!$B$32", "=G6*Inputs!$B$32"]),
-        ("Short-Term & Long-Term Debt", [debt_act, "=B28+C45", "=C28+D45", "=D28+E45", "=E28+F45", "=F28+G45"]), # 前期Debt + 借入純増減 (45行目)
-        ("Total Liabilities", ["=B27+B28", "=C27+C28", "=D27+D28", "=E27+E28", "=F27+F28", "=G27+G28"]),
+        ("Accounts Payable", [rev_act * 0.08, "=C{Total Revenue}*{Inputs:Accounts Payable % of Rev}", "=D{Total Revenue}*{Inputs:Accounts Payable % of Rev}", "=E{Total Revenue}*{Inputs:Accounts Payable % of Rev}", "=F{Total Revenue}*{Inputs:Accounts Payable % of Rev}", "=G{Total Revenue}*{Inputs:Accounts Payable % of Rev}"]),
+        ("Short-Term & Long-Term Debt", [debt_act, "=B{row}+C{Debt Drawdown / (Repayment)}", "=C{row}+D{Debt Drawdown / (Repayment)}", "=D{row}+E{Debt Drawdown / (Repayment)}", "=E{row}+F{Debt Drawdown / (Repayment)}", "=F{row}+G{Debt Drawdown / (Repayment)}"]),
+        ("Total Liabilities", ["=B{Accounts Payable}+B{Short-Term & Long-Term Debt}", "=C{Accounts Payable}+C{Short-Term & Long-Term Debt}", "=D{Accounts Payable}+D{Short-Term & Long-Term Debt}", "=E{Accounts Payable}+E{Short-Term & Long-Term Debt}", "=F{Accounts Payable}+F{Short-Term & Long-Term Debt}", "=G{Accounts Payable}+G{Short-Term & Long-Term Debt}"]),
         
-        ("Share Capital (Paid-in)", [800.0, "=B30", "=C30", "=D30", "=E30", "=F30"]),
-        ("Retained Earnings", [300.0, "=B31+C17", "=C31+D17", "=D31+E17", "=E31+F17", "=F31+G17"]), # 前期純資産 + 当期純利益 (17行目)
-        ("Total Equity", ["=B30+B31", "=C30+C31", "=D30+D31", "=E30+E31", "=F30+F31", "=G30+G31"]),
-        ("Total Liabilities & Equity", ["=B29+B32", "=C29+C32", "=D29+D32", "=E29+E32", "=F29+F32", "=G29+G32"]),
+        ("Share Capital (Paid-in)", [800.0, "=B{row}", "=C{row}", "=D{row}", "=E{row}", "=F{row}"]),
+        ("Retained Earnings", [300.0, "=B{row}+C{Net Income}", "=C{row}+D{Net Income}", "=D{row}+E{Net Income}", "=E{row}+F{Net Income}", "=F{row}+G{Net Income}"]),
+        ("Total Equity", ["=B{Share Capital (Paid-in)}+B{Retained Earnings}", "=C{Share Capital (Paid-in)}+C{Retained Earnings}", "=D{Share Capital (Paid-in)}+D{Retained Earnings}", "=E{Share Capital (Paid-in)}+E{Retained Earnings}", "=F{Share Capital (Paid-in)}+F{Retained Earnings}", "=G{Share Capital (Paid-in)}+G{Retained Earnings}"]),
+        ("Total Liabilities & Equity", ["=B{Total Liabilities}+B{Total Equity}", "=C{Total Liabilities}+C{Total Equity}", "=D{Total Liabilities}+D{Total Equity}", "=E{Total Liabilities}+E{Total Equity}", "=F{Total Liabilities}+F{Total Equity}", "=G{Total Liabilities}+G{Total Equity}"]),
         
-        ("BALANCE CHECK (Tie-out)", ["=B25-B33", "=C25-C33", "=D25-D33", "=E25-E33", "=F25-F33", "=G25-G33"])
+        ("BALANCE CHECK (Tie-out)", ["=B{Total Assets}-B{Total Liabilities & Equity}", "=C{Total Assets}-C{Total Liabilities & Equity}", "=D{Total Assets}-D{Total Liabilities & Equity}", "=E{Total Assets}-E{Total Liabilities & Equity}", "=F{Total Assets}-F{Total Liabilities & Equity}", "=G{Total Assets}-G{Total Liabilities & Equity}"])
     ]
     
     # 3. キャッシュ・フロー計算書 (Cash Flow Statement)
     cf_rows = [
-        ("Net Income", ["=B17", "=C17", "=D17", "=E17", "=F17", "=G17"]),
-        ("Plus: D&A", ["=B12", "=C12", "=D12", "=E12", "=F12", "=G12"]),
-        ("Less: Change in Receivables", ["", "=-(C22-B22)", "=-(D22-C22)", "=-(E22-D22)", "=-(F22-E22)", "=-(G22-F22)"]),
-        ("Less: Change in Inventory", ["", "=-(C23-B23)", "=-(D23-C23)", "=-(E23-D23)", "=-(F23-E23)", "=-(G23-F23)"]),
-        ("Plus: Change in Payables", ["", "=C27-B27", "=D27-C27", "=E27-D27", "=F27-E27", "=G27-F27"]),
-        ("Operating Cash Flow (OCF)", ["=SUM(B37:B41)", "=SUM(C37:C41)", "=SUM(D37:D41)", "=SUM(E37:E41)", "=SUM(F37:F41)", "=SUM(G37:G41)"]),
+        ("Net Income (CF)", ["=B{Net Income}", "=C{Net Income}", "=D{Net Income}", "=E{Net Income}", "=F{Net Income}", "=G{Net Income}"]),
+        ("Plus: D&A", ["=B{Depreciation & Amortization}", "=C{Depreciation & Amortization}", "=D{Depreciation & Amortization}", "=E{Depreciation & Amortization}", "=F{Depreciation & Amortization}", "=G{Depreciation & Amortization}"]),
+        ("Less: Change in Receivables", ["", "=-(C{Accounts Receivable}-B{Accounts Receivable})", "=-(D{Accounts Receivable}-C{Accounts Receivable})", "=-(E{Accounts Receivable}-D{Accounts Receivable})", "=-(F{Accounts Receivable}-E{Accounts Receivable})", "=-(G{Accounts Receivable}-F{Accounts Receivable})"]),
+        ("Less: Change in Inventory", ["", "=-(C{Inventory}-B{Inventory})", "=-(D{Inventory}-C{Inventory})", "=-(E{Inventory}-D{Inventory})", "=-(F{Inventory}-E{Inventory})", "=-(G{Inventory}-F{Inventory})"]),
+        ("Plus: Change in Payables", ["", "=C{Accounts Payable}-B{Accounts Payable}", "=D{Accounts Payable}-C{Accounts Payable}", "=E{Accounts Payable}-D{Accounts Payable}", "=F{Accounts Payable}-E{Accounts Payable}", "=G{Accounts Payable}-F{Accounts Payable}"]),
+        ("Operating Cash Flow (OCF)", ["=SUM(B{Net Income (CF)}:B{Plus: Change in Payables})", "=SUM(C{Net Income (CF)}:C{Plus: Change in Payables})", "=SUM(D{Net Income (CF)}:D{Plus: Change in Payables})", "=SUM(E{Net Income (CF)}:E{Plus: Change in Payables})", "=SUM(F{Net Income (CF)}:F{Plus: Change in Payables})", "=SUM(G{Net Income (CF)}:G{Plus: Change in Payables})"]),
         
-        ("Capital Expenditures (CapEx)", [-225.6, "=Inputs!$B$40", "=Inputs!$B$41", "=Inputs!$B$42", "=Inputs!$B$43", "=Inputs!$B$44"]),
-        ("Investing Cash Flow (ICF)", ["=B43", "=C43", "=D43", "=E43", "=F43", "=G43"]),
+        ("Capital Expenditures (CapEx)", [-225.6, "={Inputs:CapEx FY25E}", "={Inputs:CapEx FY26E}", "={Inputs:CapEx FY27E}", "={Inputs:CapEx FY28E}", "={Inputs:CapEx FY29E}"]),
+        ("Investing Cash Flow (ICF)", ["=B{Capital Expenditures (CapEx)}", "=C{Capital Expenditures (CapEx)}", "=D{Capital Expenditures (CapEx)}", "=E{Capital Expenditures (CapEx)}", "=F{Capital Expenditures (CapEx)}", "=G{Capital Expenditures (CapEx)}"]),
         
-        ("Debt Drawdown / (Repayment)", [-324.3, "=Inputs!$B$48", "=Inputs!$B$49", "=Inputs!$B$50", "=Inputs!$B$51", "=Inputs!$B$52"]),
-        ("Financing Cash Flow (FCF)", ["=B45", "=C45", "=D45", "=E45", "=F45", "=G45"]),
+        ("Debt Drawdown / (Repayment)", [-324.3, "={Inputs:Debt Drawdown FY25E}", "={Inputs:Debt Drawdown FY26E}", "={Inputs:Debt Drawdown FY27E}", "={Inputs:Debt Drawdown FY28E}", "={Inputs:Debt Drawdown FY29E}"]),
+        ("Financing Cash Flow (FCF)", ["=B{Debt Drawdown / (Repayment)}", "=C{Debt Drawdown / (Repayment)}", "=D{Debt Drawdown / (Repayment)}", "=E{Debt Drawdown / (Repayment)}", "=F{Debt Drawdown / (Repayment)}", "=G{Debt Drawdown / (Repayment)}"]),
         
-        ("Net Change in Cash", ["=B42+B44+B46", "=C42+C44+C46", "=D42+D44+D46", "=E42+E44+E46", "=F42+F44+F46", "=G42+G44+G46"]),
-        ("Beginning Cash Balance", [187.6, "=B49", "=C49", "=D49", "=E49", "=F49"]),
-        ("Ending Cash Balance", ["=B47+B48", "=C47+C48", "=D47+D48", "=E47+E48", "=F47+F48", "=G47+G48"])
+        ("Net Change in Cash", ["=B{Operating Cash Flow (OCF)}+B{Investing Cash Flow (ICF)}+B{Financing Cash Flow (FCF)}", "=C{Operating Cash Flow (OCF)}+C{Investing Cash Flow (ICF)}+C{Financing Cash Flow (FCF)}", "=D{Operating Cash Flow (OCF)}+D{Investing Cash Flow (ICF)}+D{Financing Cash Flow (FCF)}", "=E{Operating Cash Flow (OCF)}+E{Investing Cash Flow (ICF)}+E{Financing Cash Flow (FCF)}", "=F{Operating Cash Flow (OCF)}+F{Investing Cash Flow (ICF)}+F{Financing Cash Flow (FCF)}", "=G{Operating Cash Flow (OCF)}+G{Investing Cash Flow (ICF)}+G{Financing Cash Flow (FCF)}"]),
+        ("Beginning Cash Balance", [187.6, "=B{Ending Cash Balance}", "=C{Ending Cash Balance}", "=D{Ending Cash Balance}", "=E{Ending Cash Balance}", "=F{Ending Cash Balance}"]),
+        ("Ending Cash Balance", ["=B{Beginning Cash Balance}+B{Net Change in Cash}", "=C{Beginning Cash Balance}+C{Net Change in Cash}", "=D{Beginning Cash Balance}+D{Net Change in Cash}", "=E{Beginning Cash Balance}+E{Net Change in Cash}", "=F{Beginning Cash Balance}+F{Net Change in Cash}", "=G{Beginning Cash Balance}+G{Net Change in Cash}"])
     ]
     
+    # 行番号を動的に事前確定する
+    row_map = {}
+    
+    # 1. IS の行番号確定
+    current_row = 6
+    for label, _ in is_rows:
+        row_map[label] = current_row
+        current_row += 1
+        
+    # 2. BS の行番号確定
+    title_row_bs = current_row + 1 # タイトル行 (II. BALANCE SHEET)
+    current_row = title_row_bs + 1 # ASSETSラベルの行
+    for label, _ in bs_rows:
+        row_map[label] = current_row
+        current_row += 1
+        
+    # 3. CF の行番号確定
+    title_row_cf = current_row + 1 # タイトル行 (III. CASH FLOW STATEMENT)
+    current_row = title_row_cf + 1
+    for label, _ in cf_rows:
+        row_map[label] = current_row
+        current_row += 1
+
+    # テンプレート数式を解決するヘルパー関数
+    def resolve_formula(template, col_idx, current_row_num):
+        if not isinstance(template, str) or not template.startswith("="):
+            return template
+            
+        col_letter = get_column_letter(col_idx)
+        prev_col_letter = get_column_letter(col_idx - 1) if col_idx > 2 else ""
+        
+        formula = template
+        
+        # {Inputs:xxx} の置換
+        def replace_inputs(match):
+            key = match.group(1)
+            return inputs_map.get(key, f"Inputs!$B$4")
+            
+        formula = re.sub(r'\{Inputs:([^}]+)\}', replace_inputs, formula)
+        
+        # {row} 自体の置換 (現在の行)
+        formula = formula.replace("{row}", str(current_row_num))
+        
+        # {prev_col_letter} や {col_letter} を補完するためにプレースホルダー内の置換を行う
+        # {prev:xxx} の置換
+        def replace_prev(match):
+            key = match.group(1)
+            row = row_map.get(key)
+            if row:
+                return f"{prev_col_letter}{row}"
+            return f"{prev_col_letter}1"
+            
+        formula = re.sub(r'\{prev:([^}]+)\}', replace_prev, formula)
+        
+        # {xxx} の置換 (現在の列 of 特定行)
+        def replace_curr(match):
+            key = match.group(1)
+            row = row_map.get(key)
+            if row:
+                return f"{col_letter}{row}"
+            return f"{col_letter}1"
+            
+        formula = re.sub(r'\{([^}]+)\}', replace_curr, formula)
+        
+        return formula
+
     # データを流し込む関数
     def populate_section(rows, start_row):
         for idx, (label, vals) in enumerate(rows):
@@ -284,11 +356,14 @@ def build_3statement_model(ticker_data, ticker_dir):
                 cell = ws.cell(row=r, column=col_idx)
                 cell.alignment = Alignment(horizontal="right")
                 
-                if str(val).startswith("="):
-                    cell.value = val
+                # 数式テンプレートの動的解決
+                resolved_val = resolve_formula(val, col_idx, r)
+                
+                if str(resolved_val).startswith("="):
+                    cell.value = resolved_val
                     cell.font = bold_data_font if is_bold else data_font
                 else:
-                    cell.value = val
+                    cell.value = resolved_val
                     cell.font = input_font if (col_idx == 2 or label in ["Capital Expenditures (CapEx)", "Debt Drawdown / (Repayment)", "Total Revenue"]) else data_font
                 
                 if "%" in label or "Growth" in label:
@@ -300,22 +375,20 @@ def build_3statement_model(ticker_data, ticker_dir):
                     cell.number_format = '#,##0.0'
                     
                 if is_bold:
-                    cell.border = Border(top=thin_border_side, bottom=Side(style='double' if "Total" in label or "Balance" in label or "Income" in label else 'thin', color='1B263B'))
+                    cell.border = Border(top=thin_border_side, bottom=Side(style='double' if "Total" in label or "Balance" in label or "Ending Cash" in label or "Net Income" in label else 'thin', color='1B263B'))
                     
         return start_row + len(rows)
         
     # I. ISを描画
-    last_row = populate_section(is_rows, 6) # 6-17行
+    last_row = populate_section(is_rows, 6)
     
-    # II. BSを描画 (動的にタイトル行を決定)
-    title_row_bs = last_row + 2
+    # II. BSを描画
     ws.cell(row=title_row_bs, column=1, value="II. BALANCE SHEET").font = section_font
     ws.merge_cells(start_row=title_row_bs, start_column=1, end_row=title_row_bs, end_column=7)
     ws.cell(row=title_row_bs, column=1).fill = section_fill
     last_row = populate_section(bs_rows, title_row_bs + 1)
     
     # III. CFを描画
-    title_row_cf = last_row + 2
     ws.cell(row=title_row_cf, column=1, value="III. CASH FLOW STATEMENT").font = section_font
     ws.merge_cells(start_row=title_row_cf, start_column=1, end_row=title_row_cf, end_column=7)
     ws.cell(row=title_row_cf, column=1).fill = section_fill
