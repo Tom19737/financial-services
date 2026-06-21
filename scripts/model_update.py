@@ -140,9 +140,9 @@ def main():
     # 3. H-7 解決: sys.executable を使ってOS依存の仮想環境パスを排除し再生成を実行
     logger.info("Re-generating financial models...")
     script_dir = os.path.dirname(__file__)
-    subprocess.run([sys.executable, os.path.join(script_dir, "generate_models.py"), ticker_str], check=True)
-    subprocess.run([sys.executable, os.path.join(script_dir, "generate_3statement.py"), ticker_str], check=True)
-    subprocess.run([sys.executable, os.path.join(script_dir, "generate_lbo.py"), ticker_str], check=True)
+    subprocess.run([sys.executable, os.path.join(script_dir, "generate_models.py"), ticker_str, "--outdir", args.outdir], check=True)
+    subprocess.run([sys.executable, os.path.join(script_dir, "generate_3statement.py"), ticker_str, "--outdir", args.outdir], check=True)
+    subprocess.run([sys.executable, os.path.join(script_dir, "generate_lbo.py"), ticker_str, "--outdir", args.outdir], check=True)
     
     # 4. C-4 解決: 絶対パスを排除し、安全にモデル監査スクリプトを実行
     # audit_models.py が scripts/ または tests/ または同じディレクトリにあれば実行
