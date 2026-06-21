@@ -92,11 +92,11 @@ class TestFetchEdinet(unittest.TestCase):
 
     # デコレータの順序に対応させて、引数の順番を修正
     # 上から順に complement, extract, download_zip, fetch_doc, lookup の順に引数に渡される
-    @patch('fetch_edinet.lookup_edinet_code')
-    @patch('fetch_edinet.fetch_document_list')
-    @patch('fetch_edinet.download_document_zip')
-    @patch('fetch_edinet.extract_financials_from_zip')
     @patch('fetch_edinet.complement_with_yfinance')
+    @patch('fetch_edinet.extract_financials_from_zip')
+    @patch('fetch_edinet.download_document_zip')
+    @patch('fetch_edinet.fetch_document_list')
+    @patch('fetch_edinet.lookup_edinet_code')
     @patch.dict(os.environ, {"EDINET_API_KEY": "dummy_api_key"})
     def test_main_flow(self, mock_lookup, mock_fetch_doc_list, mock_download_zip, mock_extract, mock_complement):
         mock_lookup.return_value = {
