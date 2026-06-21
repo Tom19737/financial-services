@@ -17,7 +17,12 @@ class TestOtherScripts(unittest.TestCase):
     def setUp(self):
         self.test_dir = "./out/test_other_data"
         if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+            try:
+                shutil.rmtree(self.test_dir)
+            except PermissionError:
+                import time
+                time.sleep(0.5)
+                shutil.rmtree(self.test_dir, ignore_errors=True)
         os.makedirs(self.test_dir, exist_ok=True)
 
         self.ticker = "7203"
@@ -66,7 +71,12 @@ class TestOtherScripts(unittest.TestCase):
 
     def tearDown(self):
         if os.path.exists(self.test_dir):
-            shutil.rmtree(self.test_dir)
+            try:
+                shutil.rmtree(self.test_dir)
+            except PermissionError:
+                import time
+                time.sleep(0.5)
+                shutil.rmtree(self.test_dir, ignore_errors=True)
 
     @patch('sys.argv', ['clean_data.py', '7203', '--outdir', './out/test_other_data'])
     def test_clean_data(self):
