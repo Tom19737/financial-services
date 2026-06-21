@@ -5,7 +5,9 @@ import json
 import yfinance as yf
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from utils import sanitize_folder_name
+from utils import sanitize_folder_name, setup_logging
+
+logger = setup_logging("fetch_yfinance")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Fetch stock data and financial statements using yfinance")
@@ -20,15 +22,15 @@ def parse_args():
 def save_financial_statement(df, name, outdir):
     """財務諸表DataFrameをCSVとして保存するヘルパー関数"""
     if df is None or df.empty:
-        print(f"Warning: No data found for {name}. Skipping.")
+        logger.warning(f"No data found for {name}. Skipping.")
         return False
     try:
         csv_path = os.path.join(outdir, f"{name}.csv")
         df.to_csv(csv_path)
-        print(f"Saved {name} to {csv_path}")
+        logger.info(f"Saved {name} to {csv_path}")
         return True
     except Exception as e:
-        print(f"Error saving {name} to CSV: {e}", file=sys.stderr)
+        logger.error(f"Error saving {name} to CSV: {e}")
         return False
 
 def main():
@@ -40,9 +42,9 @@ def main():
     # ※ 米国の4桁ティッカー (MSFT等) は先頭が英字のため除外されます。
     if len(ticker_str) == 4 and ticker_str[0].isdigit() and ticker_str.isalnum():
         ticker_str = f"{ticker_str}.T"
-        print(f"Detected Japanese ticker code. Appended '.T': {ticker_str}")
+        logger.info(f"Detected Japanese ticker code. Appended '.T': {ticker_str}")
         
-    print(f"Fetching data for {ticker_str}...")
+    logger.info(f"Fetching data for {ticker_str}...")
     
     try:
         ticker = yf.Ticker(ticker_str)
@@ -50,7 +52,7 @@ def main():
         # 1. ヒストリカル株価データの取得
         hist = ticker.history(period=args.period, interval=args.interval)
         if hist.empty:
-            print(f"Error: No historical data found for {ticker_str}.", file=sys.stderr)
+            logger.error(f"Error: No historical data found for {ticker_str}.")
             sys.exit(1)
             
         # 2. 会社基本情報（info）の取得（フォールバック付き）
@@ -58,7 +60,7 @@ def main():
         try:
             info_data = ticker.info
         except Exception as e:
-            print(f"Warning: Failed to fetch ticker info: {e}", file=sys.stderr)
+            logger.warning(f"Failed to fetch ticker info: {e}")
             
         # 英語会社名の決定とクリーンアップ
         company_name = None
@@ -73,7 +75,7 @@ def main():
         else:
             folder_name = ticker_str
             
-        print(f"Target folder name: {folder_name}")
+        logger.info(f"Target folder name: {folder_name}")
         
         # ディレクトリ作成 (企業コードごとのフォルダ)
         target_dir = os.path.join(args.outdir, folder_name, "market_data")
@@ -82,7 +84,7 @@ def main():
         # 株価CSV出力
         csv_path = os.path.join(target_dir, "prices.csv")
         hist.to_csv(csv_path)
-        print(f"Saved historical stock prices to {csv_path}")
+        logger.info(f"Saved historical stock prices to {csv_path}")
             
         latest_price = float(hist['Close'].iloc[-1]) if not hist.empty else None
             
@@ -105,39 +107,38 @@ def main():
         json_path = os.path.join(target_dir, "summary.json")
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False, indent=2)
-        print(f"Saved summary data to {json_path}")
+        logger.info(f"Saved summary data to {json_path}")
         
         # 3. 財務諸表（ファンダメンタルズ）の取得と保存
         if not args.skip_fundamentals:
-            print("Fetching financial statements (PL/BS/CF)...")
+            logger.info("Fetching financial statements (PL/BS/CF)...")
             
             # 損益計算書 (Income Statement)
             try:
                 save_financial_statement(ticker.income_stmt, "annual_income_stmt", target_dir)
                 save_financial_statement(ticker.quarterly_income_stmt, "quarterly_income_stmt", target_dir)
             except Exception as e:
-                print(f"Warning: Failed to fetch Income Statement: {e}", file=sys.stderr)
+                logger.warning(f"Failed to fetch Income Statement: {e}")
                 
             # 貸借対照表 (Balance Sheet)
             try:
                 save_financial_statement(ticker.balance_sheet, "annual_balance_sheet", target_dir)
                 save_financial_statement(ticker.quarterly_balance_sheet, "quarterly_balance_sheet", target_dir)
             except Exception as e:
-                print(f"Warning: Failed to fetch Balance Sheet: {e}", file=sys.stderr)
+                logger.warning(f"Failed to fetch Balance Sheet: {e}")
                 
             # キャッシュフロー計算書 (Cash Flow)
             try:
                 save_financial_statement(ticker.cashflow, "annual_cashflow", target_dir)
                 save_financial_statement(ticker.quarterly_cashflow, "quarterly_cashflow", target_dir)
             except Exception as e:
-                print(f"Warning: Failed to fetch Cash Flow Statement: {e}", file=sys.stderr)
+                logger.warning(f"Failed to fetch Cash Flow Statement: {e}")
         
         # 完了時コンソール出力（JSON）
-        print("\nSummary metrics:")
-        print(json.dumps(summary, indent=2, ensure_ascii=False))
+        logger.info("Summary metrics:\n" + json.dumps(summary, indent=2, ensure_ascii=False))
         
     except Exception as e:
-        print(f"Error occurred while fetching data: {e}", file=sys.stderr)
+        logger.error(f"Error occurred while fetching data: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
