@@ -96,7 +96,7 @@ def main():
     
     p2 = tf.add_paragraph()
     p2.alignment = PP_ALIGN.CENTER
-    p2.text = "INVESTOR PITCH PRESENTATION"
+    p2.text = "投資家向けピッチプレゼンテーション"
     p2.font.name = font_title
     p2.font.size = Pt(24)
     p2.font.bold = True
@@ -107,28 +107,28 @@ def main():
     tf_meta = meta_box.text_frame
     p_meta = tf_meta.paragraphs[0]
     p_meta.alignment = PP_ALIGN.CENTER
-    p_meta.text = f"{datetime.now().strftime('%B %d, %Y')} | Prepared by Financial Services Analyst"
+    p_meta.text = f"{datetime.now().strftime('%Y年%m月%d日')} | アナリスト作成資料"
     p_meta.font.name = font_body
     p_meta.font.size = Pt(14)
     p_meta.font.color.rgb = c_gray
 
     # Slide 2: Executive Summary (Light Background)
     slide2 = prs.slides.add_slide(slide_layout)
-    set_slide_base(slide2, "I. EXECUTIVE SUMMARY")
+    set_slide_base(slide2, "I. エグゼクティブ・サマリー")
     
     # メイン提案ボックス
     prop_box = slide2.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(6), Inches(4.5))
     tf_prop = prop_box.text_frame
     tf_prop.word_wrap = True
     p_prop = tf_prop.paragraphs[0]
-    p_prop.text = "Investment Recommendation:"
+    p_prop.text = "投資判断："
     p_prop.font.name = font_title
     p_prop.font.size = Pt(18)
     p_prop.font.bold = True
     p_prop.font.color.rgb = c_navy
     
     p_rec = tf_prop.add_paragraph()
-    p_rec.text = "BUY (Long)"
+    p_rec.text = "買い (ロング)"
     p_rec.font.name = font_title
     p_rec.font.size = Pt(36)
     p_rec.font.bold = True
@@ -137,7 +137,7 @@ def main():
     is_jpy = ticker_data["currency"] == "JPY"
     currency_symbol = "¥" if is_jpy else "$"
     div_factor = 1e9 if is_jpy else 1e6
-    unit_suffix = "Bn" if is_jpy else "Mn"
+    unit_suffix = "十億円" if is_jpy else "百万ドル"
     
     rev_val = ticker_data["revenue"] / div_factor
     eb_val = ticker_data["ebitda"] / div_factor
@@ -152,7 +152,7 @@ def main():
     if os.path.exists(dcf_file):
         try:
             wb = openpyxl.load_workbook(dcf_file, data_only=True)
-            ws = wb["DCF Valuation"] if "DCF Valuation" in wb.sheetnames else wb.active
+            ws = wb["DCFバリュエーション"] if "DCFバリュエーション" in wb.sheetnames else (wb["DCF Valuation"] if "DCF Valuation" in wb.sheetnames else wb.active)
             val_price = ws["B47"].value
             if val_price is not None:
                 implied_target = float(val_price)
@@ -161,7 +161,7 @@ def main():
             logger.warning(f"Failed to read target price from DCF model for pitch: {e}")
             
     upside = ((implied_target - current_price) / current_price * 100) if current_price else 0.0
-    p_target.text = f"Target Price: {currency_symbol}{implied_target:,.1f}\nCurrent Price: {currency_symbol}{current_price:,.1f} (Upside {upside:+.1f}%)"
+    p_target.text = f"目標株価: {currency_symbol}{implied_target:,.1f}\n現在株価: {currency_symbol}{current_price:,.1f} (上昇余地 {upside:+.1f}%)"
     p_target.font.name = font_body
     p_target.font.size = Pt(16)
     p_target.font.color.rgb = c_dark
@@ -171,9 +171,9 @@ def main():
     if summary_desc:
         p_desc.text = f"\n{summary_desc}"
     else:
-        sector = summary_data.get("sector") or "Technology"
-        industry = summary_data.get("industry") or "Semiconductors"
-        p_desc.text = f"\n{ticker_data['name']} is a leading player in the {industry} industry ({sector} sector). Possesses solid financial performance with high growth opportunities and robust cash generation capabilities."
+        sector = summary_data.get("sector") or "テクノロジー"
+        industry = summary_data.get("industry") or "半導体"
+        p_desc.text = f"\n{ticker_data['name']}は、{sector}セクターの{industry}業界におけるリーディング企業です。堅実な財務業績を維持しており、高い成長機会と強固なキャッシュ創出力を備えています。"
         
     p_desc.font.name = font_body
     p_desc.font.size = Pt(14)
@@ -188,11 +188,11 @@ def main():
     table.columns[1].width = Inches(2.5)
     
     table_data = [
-        ("FY25E Revenue", f"{currency_symbol}{rev_val:,.1f} {unit_suffix}"),
+        ("FY25E 売上高", f"{currency_symbol}{rev_val:,.1f} {unit_suffix}"),
         ("FY25E EBITDA", f"{currency_symbol}{eb_val:,.1f} {unit_suffix}"),
-        ("FY25E EBITDA Margin", f"{ebitda_margin:.1%}"),
-        ("Shares Outstanding", f"{shares_m:,.1f} M"),
-        ("Current Price", f"{currency_symbol}{current_price:,.1f}")
+        ("FY25E EBITDAマージン", f"{ebitda_margin:.1%}"),
+        ("発行済株式数", f"{shares_m:,.1f} 百万株"),
+        ("現在株価", f"{currency_symbol}{current_price:,.1f}")
     ]
     for row_idx, (k, v) in enumerate(table_data):
         cell_k = table.cell(row_idx, 0)
@@ -209,7 +209,7 @@ def main():
 
     # Slide 3: Key Investment Pillars (Light Background)
     slide3 = prs.slides.add_slide(slide_layout)
-    set_slide_base(slide3, "II. KEY INVESTMENT PILLARS")
+    set_slide_base(slide3, "II. 主要な投資ポイント")
     
     # 3つのピラーを列ボックスで配置
     widths = Inches(3.8)
@@ -219,11 +219,11 @@ def main():
     if summary_pillars:
         pillars = [(item[0], item[1]) for item in summary_pillars]
     else:
-        industry = summary_data.get("industry") or "Industry"
+        industry = summary_data.get("industry") or "業界"
         pillars = [
-            ("1. Industry Leadership", f"{ticker_data['name']} has established a dominant market position in the {industry} field. Strong brand recognition and proprietary technologies act as deep competitive moats."),
-            ("2. Operational Efficiency", "Superior supply chain management and manufacturing efficiencies generate high operating leverage. Continuous optimization helps maintain high EBITDA margins above peers."),
-            ("3. Financial Flexibility", "Possesses a robust balance sheet with ample cash reserves and manageable debt levels. This provides significant strategic optionality for M&A, research & development, and shareholder returns.")
+            ("1. 業界におけるリーダーシップ", f"{ticker_data['name']}は、{industry}分野において圧倒的な市場ポジションを確立しています。強いブランド認知度と独自の技術力は、強固な競争優位性（経済的な堀）となっています。"),
+            ("2. 卓越したオペレーショナル・エフィシエンシー", "優れたサプライチェーン管理と製造効率により、高い営業レバレッジを実現しています。継続的な最適化により、競合他社を上回る高いEBITDAマージンを維持しています。"),
+            ("3. 財務の柔軟性", "十分な手元資金と管理可能な負債水準を備えた、健全なバランスシートを有しています。これにより、M&Aや研究開発、株主還元に対する戦略的選択肢がもたらされます。")
         ]
         
     for idx, (title, text) in enumerate(pillars):

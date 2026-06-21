@@ -40,7 +40,7 @@ def create_comps_model(ticker_data, peers_list, outdir):
     """類似企業比較 (Comps) シートを構築する"""
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Comparable Companies"
+    ws.title = "類似企業比較"
     ws.views.sheetView[0].showGridLines = True
     
     # 共通スタイルインポート
@@ -58,12 +58,12 @@ def create_comps_model(ticker_data, peers_list, outdir):
     thin_border = styles.thin_border
     
     is_jpy = ticker_data["currency"] == "JPY"
-    unit_str = "Bn JPY" if is_jpy else "Mn USD"
+    unit_str = "十億円" if is_jpy else "百万米ドル"
     div_factor = 1e9 if is_jpy else 1e6
     
     # タイトル
     ws.merge_cells("A1:K1")
-    ws["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - COMPARABLE COMPANY ANALYSIS"
+    ws["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - 類似企業比較分析"
     ws["A1"].font = title_font
     ws["A1"].fill = primary_fill
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
@@ -71,9 +71,9 @@ def create_comps_model(ticker_data, peers_list, outdir):
     
     # ヘッダー行
     headers = [
-        "Company", "Ticker", "Currency", f"Market Cap\n({unit_str})", f"Enterprise Value\n({unit_str})",
-        f"Revenue\n({unit_str})", "Revenue Growth\n(YoY)", f"EBITDA\n({unit_str})", "EBITDA Margin",
-        "EV / Revenue", "EV / EBITDA"
+        "企業名", "ティッカー", "通貨", f"時価総額\n({unit_str})", f"企業価値 (EV)\n({unit_str})",
+        f"売上高\n({unit_str})", "売上高成長率\n(前年比)", f"EBITDA\n({unit_str})", "EBITDAマージン",
+        "EV / 売上高", "EV / EBITDA"
     ]
     
     for col_idx, header in enumerate(headers, 1):
@@ -98,14 +98,14 @@ def create_comps_model(ticker_data, peers_list, outdir):
             logger.warning(f"Skipping peer {peer} due to missing data: {e}")
         
     # 2. 対象企業 (最後に配置)
-    all_data.append((f"{ticker_data['name']} (Subject)", ticker_data["ticker"], ticker_data["currency"], ticker_data["market_cap"], ticker_data["revenue"], ticker_data["ebitda"]))
+    all_data.append((f"{ticker_data['name']} (対象会社)", ticker_data["ticker"], ticker_data["currency"], ticker_data["market_cap"], ticker_data["revenue"], ticker_data["ebitda"]))
     
     start_row = 4
     for idx, (name, tk, curr, mc, rev, ebitda) in enumerate(all_data):
         row = start_row + idx
         ws.row_dimensions[row].height = 24
         
-        ws.cell(row=row, column=1, value=name).font = bold_data_font if "Subject" in name else data_font
+        ws.cell(row=row, column=1, value=name).font = bold_data_font if "対象会社" in name else data_font
         ws.cell(row=row, column=2, value=tk).font = input_font
         ws.cell(row=row, column=3, value=curr).font = input_font
         
@@ -157,20 +157,20 @@ def create_comps_model(ticker_data, peers_list, outdir):
                 
         for col_idx in range(1, 12):
             ws.cell(row=row, column=col_idx).border = thin_border
-            if "Subject" in name:
+            if "対象会社" in name:
                 ws.cell(row=row, column=col_idx).fill = subject_fill
                 
     # 統計サマリー
     stats = [
-        ("Maximum", "MAX"),
-        ("75th Percentile", "QUARTILE.INC"),
-        ("Median", "MEDIAN"),
-        ("25th Percentile", "QUARTILE.INC"),
-        ("Minimum", "MIN")
+        ("最大値", "MAX"),
+        ("75パーセンタイル", "QUARTILE.INC"),
+        ("中央値", "MEDIAN"),
+        ("25パーセンタイル", "QUARTILE.INC"),
+        ("最小値", "MIN")
     ]
     
     stat_start_row = start_row + len(all_data) + 1
-    ws.cell(row=stat_start_row - 1, column=1, value="PEER STATISTICS").font = Font(name=font_family, size=11, bold=True, color="1B263B")
+    ws.cell(row=stat_start_row - 1, column=1, value="ピア企業統計値").font = Font(name=font_family, size=11, bold=True, color="1B263B")
     
     for idx, (label, func) in enumerate(stats):
         row = stat_start_row + idx
@@ -188,7 +188,7 @@ def create_comps_model(ticker_data, peers_list, outdir):
             cell.border = thin_border
             
             if func == "QUARTILE.INC":
-                q_num = 3 if "75th" in label else 1
+                q_num = 3 if "75" in label else 1
                 cell.value = f"=QUARTILE.INC({col_letter}{start_row}:{col_letter}{peer_range_end}, {q_num})"
             else:
                 cell.value = f"={func}({col_letter}{start_row}:{col_letter}{peer_range_end})"
@@ -200,7 +200,7 @@ def create_comps_model(ticker_data, peers_list, outdir):
             elif col in [10, 11]:
                 cell.number_format = '0.00x'
                 
-            if label == "Median":
+            if label == "中央値":
                 cell.fill = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
                 
     for col in ws.columns:
@@ -213,6 +213,7 @@ def create_comps_model(ticker_data, peers_list, outdir):
     os.makedirs(target_path, exist_ok=True)
     out_file = os.path.join(target_path, f"comps_{ticker_data['ticker']}.xlsx")
     wb.save(out_file)
+    wb.close()
     logger.info(f"Successfully generated Comps model: {out_file}")
 
 def create_dcf_model(ticker_data, outdir):
@@ -223,7 +224,7 @@ def create_dcf_model(ticker_data, outdir):
     wb.properties.calcPr = calc_pr
     
     ws = wb.active
-    ws.title = "DCF Valuation"
+    ws.title = "DCFバリュエーション"
     ws.views.sheetView[0].showGridLines = True
     
     # 共通スタイルインポート
@@ -243,35 +244,35 @@ def create_dcf_model(ticker_data, outdir):
     thin_border = styles.thin_border
     
     is_jpy = ticker_data["currency"] == "JPY"
-    unit_str = "Bn JPY" if is_jpy else "Mn USD"
+    unit_str = "十億円" if is_jpy else "百万米ドル"
     div_factor = 1e9 if is_jpy else 1e6
     currency_symbol = "¥" if is_jpy else "$"
     
     # タイトル行
     ws.merge_cells("A1:H1")
-    ws["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - DISCOUNTED CASH FLOW VALUATION MODEL"
+    ws["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - ディスカウントキャッシュフロー (DCF) 評価モデル"
     ws["A1"].font = title_font
     ws["A1"].fill = primary_fill
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 40
     
     # Inputsシートを作成して前提条件を配置
-    ws_inputs = wb.create_sheet(title="Inputs")
+    ws_inputs = wb.create_sheet(title="前提条件")
     ws_inputs.views.sheetView[0].showGridLines = True
 
     # タイトル行 (Inputs)
     ws_inputs.merge_cells("A1:C1")
-    ws_inputs["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - VALUATION INPUTS"
+    ws_inputs["A1"] = f"{ticker_data['name']} ({ticker_data['ticker']}) - DCF前提条件"
     ws_inputs["A1"].font = title_font
     ws_inputs["A1"].fill = primary_fill
     ws_inputs["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws_inputs.row_dimensions[1].height = 40
 
-    ws_inputs.cell(row=3, column=1, value="Parameter").font = header_font
+    ws_inputs.cell(row=3, column=1, value="項目").font = header_font
     ws_inputs.cell(row=3, column=1).fill = primary_fill
-    ws_inputs.cell(row=3, column=2, value="Value").font = header_font
+    ws_inputs.cell(row=3, column=2, value="設定値").font = header_font
     ws_inputs.cell(row=3, column=2).fill = primary_fill
-    ws_inputs.cell(row=3, column=3, value="Source / Note").font = header_font
+    ws_inputs.cell(row=3, column=3, value="情報源 / 備考").font = header_font
     ws_inputs.cell(row=3, column=3).fill = primary_fill
     ws_inputs.row_dimensions[3].height = 25
 
@@ -279,14 +280,14 @@ def create_dcf_model(ticker_data, outdir):
     tax_rate = 0.306 if is_jpy else 0.210
 
     inputs_data = [
-        ("Risk-Free Rate (10y Govt Bond)", rf_rate, "0.0%", f"[ASSUMPTION] 10y {'JGB' if is_jpy else 'US Treasury'} Yield"),
-        ("Equity Beta (vs market)", 1.20, "0.00", "[ASSUMPTION] Peer Beta"),
-        ("Equity Risk Premium", 0.060, "0.0%", "[ASSUMPTION] Market Risk Premium"),
-        ("Pre-tax Cost of Debt", 0.025 if is_jpy else 0.055, "0.0%", "[ASSUMPTION] Average Cost of Debt"),
-        ("Effective Tax Rate", tax_rate, "0.0%", "[ASSUMPTION] Statutory Tax Rate"),
-        ("Target Debt / (Debt + Equity)", 0.20, "0.0%", "[ASSUMPTION] Target Capital Structure"),
-        ("Terminal EV/EBITDA Multiple", 10.0, "0.0x", "[ASSUMPTION] Peer Trading Multiple"),
-        ("Perpetual Growth Rate (Gordon Growth)", 0.005 if is_jpy else 0.020, "0.0%", "[ASSUMPTION] Long-term GDP Growth")
+        ("リスクフリーレート (10年国債利回り)", rf_rate, "0.0%", f"[想定] 10年 {'JGB' if is_jpy else 'US Treasury'} 利回り"),
+        ("株式ベータ (対市場ベータ)", 1.20, "0.00", "[想定] 類似企業ベータ"),
+        ("株式リスクプレミアム", 0.060, "0.0%", "[想定] 市場リスクプレミアム"),
+        ("税引前負債コスト", 0.025 if is_jpy else 0.055, "0.0%", "[想定] 平均負債コスト"),
+        ("実効税率", tax_rate, "0.0%", "[想定] 法定実効税率"),
+        ("目標負債比率 (負債/総資本)", 0.20, "0.0%", "[想定] 目標資本構成"),
+        ("ターミナルEV/EBITDA倍率", 10.0, "0.0x", "[想定] 類似企業マルチプル"),
+        ("永久成長率 (ゴードン成長モデル)", 0.005 if is_jpy else 0.020, "0.0%", "[想定] 長期GDP成長率")
     ]
 
     for idx, (label, val, fmt, src) in enumerate(inputs_data):
@@ -309,47 +310,47 @@ def create_dcf_model(ticker_data, outdir):
         ws_inputs.column_dimensions[col_letter].width = max(max_len + 3, 14)
 
     # I. 前提条件セクション (WACC & Terminal Multiple)
-    ws["A3"] = "I. VALUATION ASSUMPTIONS"
+    ws["A3"] = "I. バリュエーション前提条件"
     ws["A3"].font = section_font
     ws.merge_cells("A3:C3")
     ws["A3"].fill = section_fill
     
     assumptions = [
-        ("Risk-Free Rate (10y Govt Bond)", "=Inputs!B4", "0.0%"),
-        ("Equity Beta (vs market)", "=Inputs!B5", "0.00"),
-        ("Equity Risk Premium", "=Inputs!B6", "0.0%"),
-        ("Cost of Equity (CAPM)", "=B4+B5*B6", "0.0%"),
-        ("Pre-tax Cost of Debt", "=Inputs!B7", "0.0%"),
-        ("Effective Tax Rate", "=Inputs!B8", "0.0%"),
-        ("After-tax Cost of Debt", "=B8*(1-B9)", "0.0%"),
-        ("Target Debt / (Debt + Equity)", "=Inputs!B9", "0.0%"),
-        ("Target Equity / (Debt + Equity)", "=1-B11", "0.0%"),
-        ("Weighted Average Cost of Capital (WACC)", "=B7*B12+B10*B11", "0.0%"),
-        ("Terminal EV/EBITDA Multiple", "=Inputs!B10", "0.0x"),
-        ("Perpetual Growth Rate (Gordon Growth)", "=Inputs!B11", "0.0%")
+        ("リスクフリーレート (10年国債利回り)", "=前提条件!B4", "0.0%"),
+        ("株式ベータ (対市場ベータ)", "=前提条件!B5", "0.00"),
+        ("株式リスクプレミアム", "=前提条件!B6", "0.0%"),
+        ("株主資本コスト (CAPM)", "=B4+B5*B6", "0.0%"),
+        ("税引前負債コスト", "=前提条件!B7", "0.0%"),
+        ("実効税率", "=前提条件!B8", "0.0%"),
+        ("税引後負債コスト", "=B8*(1-B9)", "0.0%"),
+        ("目標負債比率 (負債/総資本)", "=前提条件!B9", "0.0%"),
+        ("目標自己資本比率 (自己資本/総資本)", "=1-B11", "0.0%"),
+        ("加重平均資本コスト (WACC)", "=B7*B12+B10*B11", "0.0%"),
+        ("ターミナルEV/EBITDA倍率", "=前提条件!B10", "0.0x"),
+        ("永久成長率 (ゴードン成長モデル)", "=前提条件!B11", "0.0%")
     ]
     
     for idx, (label, val, fmt) in enumerate(assumptions):
         row = 4 + idx
         ws.row_dimensions[row].height = 20
-        ws.cell(row=row, column=1, value=label).font = bold_data_font if "WACC" in label else data_font
+        ws.cell(row=row, column=1, value=label).font = bold_data_font if ("WACC" in label or "加重平均資本コスト" in label) else data_font
         cell_val = ws.cell(row=row, column=2, value=val)
         cell_val.font = data_font if str(val).startswith("=") else input_font
         cell_val.number_format = fmt
         cell_val.alignment = Alignment(horizontal="right")
         
-        if "WACC" in label:
+        if "WACC" in label or "加重平均資本コスト" in label:
             ws.cell(row=row, column=1).fill = highlight_fill
             cell_val.fill = highlight_fill
             cell_val.font = Font(name=font_family, size=11, bold=True, color="047857")
             
     # II. プロジェクションセクション
-    ws["A18"] = f"II. FINANCIAL PROJECTIONS (Base Case - {unit_str})"
+    ws["A18"] = f"II. 財務予測 (ベースケース - {unit_str})"
     ws["A18"].font = section_font
     ws.merge_cells("A18:H18")
     ws["A18"].fill = section_fill
     
-    proj_headers = ["Metric", "Actual (LTM)", "FY1E", "FY2E", "FY3E", "FY4E", "FY5E", "Terminal"]
+    proj_headers = ["指標", "実績 (LTM)", "FY1E", "FY2E", "FY3E", "FY4E", "FY5E", "ターミナル"]
     for col_idx, header in enumerate(proj_headers, 1):
         c = ws.cell(row=20, column=col_idx, value=header)
         c.font = header_font
@@ -370,29 +371,29 @@ def create_dcf_model(ticker_data, outdir):
     nwc_percent_ltm = nwc_ltm / rev_ltm if rev_ltm else 0.01
     
     rows_def = [
-        ("Total Revenue", "input", [rev_ltm, "=B21*1.08", "=C21*1.06", "=D21*1.05", "=E21*1.05", "=F21*1.05"], "#,##0.0"),
-        ("Revenue Growth", "calc", ["", "=(C21-B21)/B21", "=(D21-C21)/C21", "=(E21-D21)/D21", "=(F21-E21)/E21", "=(G21-F21)/F21"], "0.0%"),
+        ("売上高", "input", [rev_ltm, "=B21*1.08", "=C21*1.06", "=D21*1.05", "=E21*1.05", "=F21*1.05"], "#,##0.0"),
+        ("売上高成長率", "calc", ["", "=(C21-B21)/B21", "=(D21-C21)/C21", "=(E21-D21)/D21", "=(F21-E21)/E21", "=(G21-F21)/F21"], "0.0%"),
         ("EBITDA", "calc", [eb_ltm, f"=C21*{eb_margin_ltm:.4f}", f"=D21*{eb_margin_ltm:.4f}", f"=E21*{eb_margin_ltm:.4f}", f"=F21*{eb_margin_ltm:.4f}", f"=G21*{eb_margin_ltm:.4f}"], "#,##0.0"),
-        ("EBITDA Margin", "calc", ["=B23/B21", "=C23/C21", "=D23/D21", "=E23/E21", "=F23/F21", "=G23/G21"], "0.0%"),
-        ("Depreciation & Amortization", "calc", [da_ltm, f"=C21*{da_percent_ltm:.4f}", f"=D21*{da_percent_ltm:.4f}", f"=E21*{da_percent_ltm:.4f}", f"=F21*{da_percent_ltm:.4f}", f"=G21*{da_percent_ltm:.4f}"], "#,##0.0"),
-        ("EBIT (Operating Income)", "calc", ["=B23-B25", "=C23-C25", "=D23-D25", "=E23-E25", "=F23-F25", "=G23-G25"], "#,##0.0"),
-        ("Taxes on EBIT", "calc", ["", "=C26*$B$9", "=D26*$B$9", "=E26*$B$9", "=F26*$B$9", "=G26*$B$9"], "#,##0.0"),
-        ("NOPAT (Net Operating Profit After Tax)", "calc", ["", "=C26-C27", "=D26-D27", "=E26-E27", "=F26-F27", "=G26-G27"], "#,##0.0"),
-        ("Plus: D&A", "calc", ["", "=C25", "=D25", "=E25", "=F25", "=G25"], "#,##0.0"),
-        ("Less: Capital Expenditures (CapEx)", "calc", [capex_ltm, f"=C21*{capex_percent_ltm:.4f}", f"=D21*{capex_percent_ltm:.4f}", f"=E21*{capex_percent_ltm:.4f}", f"=F21*{capex_percent_ltm:.4f}", f"=G21*{capex_percent_ltm:.4f}"], "#,##0.0"),
-        ("Less: Change in Net Working Capital", "calc", [nwc_ltm, f"=C21*{nwc_percent_ltm:.4f}", f"=D21*{nwc_percent_ltm:.4f}", f"=E21*{nwc_percent_ltm:.4f}", f"=F21*{nwc_percent_ltm:.4f}", f"=G21*{nwc_percent_ltm:.4f}"], "#,##0.0"),
-        ("Free Cash Flow to Firm (FCFF)", "calc", ["", "=C28+C29-C30-C31", "=D28+D29-D30-D31", "=E28+E29-E30-E31", "=F28+F29-F30-F31", "=G28+G29-G30-G31"], "#,##0.0"),
-        ("Discount Period", "calc", ["", 0.5, 1.5, 2.5, 3.5, 4.5], "0.0"),
-        ("Discount Factor", "calc", ["", "=1/((1+$B$13)^C33)", "=1/((1+$B$13)^D33)", "=1/((1+$B$13)^E33)", "=1/((1+$B$13)^F33)", "=1/((1+$B$13)^G33)"], "0.0000"),
-        ("Present Value of FCFF", "calc", ["", "=C32*C34", "=D32*D34", "=E32*E34", "=F32*F34", "=G32*G34"], "#,##0.0")
+        ("EBITDAマージン", "calc", ["=B23/B21", "=C23/C21", "=D23/D21", "=E23/E21", "=F23/F21", "=G23/G21"], "0.0%"),
+        ("減価償却費", "calc", [da_ltm, f"=C21*{da_percent_ltm:.4f}", f"=D21*{da_percent_ltm:.4f}", f"=E21*{da_percent_ltm:.4f}", f"=F21*{da_percent_ltm:.4f}", f"=G21*{da_percent_ltm:.4f}"], "#,##0.0"),
+        ("営業利益 (EBIT)", "calc", ["=B23-B25", "=C23-C25", "=D23-D25", "=E23-E25", "=F23-F25", "=G23-G25"], "#,##0.0"),
+        ("営業利益に対する税金", "calc", ["", "=C26*$B$9", "=D26*$B$9", "=E26*$B$9", "=F26*$B$9", "=G26*$B$9"], "#,##0.0"),
+        ("税引後営業利益 (NOPAT)", "calc", ["", "=C26-C27", "=D26-D27", "=E26-E27", "=F26-F27", "=G26-G27"], "#,##0.0"),
+        ("加算：減価償却費", "calc", ["", "=C25", "=D25", "=E25", "=F25", "=G25"], "#,##0.0"),
+        ("減算：設備投資額 (CapEx)", "calc", [capex_ltm, f"=C21*{capex_percent_ltm:.4f}", f"=D21*{capex_percent_ltm:.4f}", f"=E21*{capex_percent_ltm:.4f}", f"=F21*{capex_percent_ltm:.4f}", f"=G21*{capex_percent_ltm:.4f}"], "#,##0.0"),
+        ("減算：運転資本増減額", "calc", [nwc_ltm, f"=C21*{nwc_percent_ltm:.4f}", f"=D21*{nwc_percent_ltm:.4f}", f"=E21*{nwc_percent_ltm:.4f}", f"=F21*{nwc_percent_ltm:.4f}", f"=G21*{nwc_percent_ltm:.4f}"], "#,##0.0"),
+        ("企業フリーキャッシュフロー (FCFF)", "calc", ["", "=C28+C29-C30-C31", "=D28+D29-D30-D31", "=E28+E29-E30-E31", "=F28+F29-F30-F31", "=G28+G29-G30-G31"], "#,##0.0"),
+        ("割引期間", "calc", ["", 0.5, 1.5, 2.5, 3.5, 4.5], "0.0"),
+        ("割引因子", "calc", ["", "=1/((1+$B$13)^C33)", "=1/((1+$B$13)^D33)", "=1/((1+$B$13)^E33)", "=1/((1+$B$13)^F33)", "=1/((1+$B$13)^G33)"], "0.0000"),
+        ("FCFFの現在価値", "calc", ["", "=C32*C34", "=D32*D34", "=E32*E34", "=F32*F34", "=G32*G34"], "#,##0.0")
     ]
     
     for r_idx, (label, r_type, vals, fmt) in enumerate(rows_def):
         row = 21 + r_idx
         ws.row_dimensions[row].height = 22
-        ws.cell(row=row, column=1, value=label).font = bold_data_font if "FCFF" in label or "Present Value" in label else data_font
+        ws.cell(row=row, column=1, value=label).font = bold_data_font if ("FCFF" in label or "現在価値" in label or "フリーキャッシュフロー" in label) else data_font
         
-        if "FCFF" in label or "Present Value" in label:
+        if "FCFF" in label or "現在価値" in label or "フリーキャッシュフロー" in label:
             for col_idx in range(1, 9):
                 ws.cell(row=row, column=col_idx).border = Border(top=thin_border_side, bottom=thin_border_side)
                 ws.cell(row=row, column=col_idx).fill = PatternFill(start_color="FAF5FF", end_color="FAF5FF", fill_type="solid")
@@ -414,7 +415,7 @@ def create_dcf_model(ticker_data, outdir):
     ws.cell(row=23, column=8).number_format = "#,##0.0"
     
     # III. 企業価値ブリッジ
-    ws["A38"] = "III. VALUATION BRIDGE & CONCLUSION"
+    ws["A38"] = "III. 企業価値評価ブリッジおよび結論"
     ws["A38"].font = section_font
     ws.merge_cells("A38:C38")
     ws["A38"].fill = section_fill
@@ -425,29 +426,29 @@ def create_dcf_model(ticker_data, outdir):
     current_price_raw = ticker_data["current_price"] if ticker_data["current_price"] else 100.0
     
     bridge = [
-        ("Cumulative PV of FCFs", "=SUM(C35:G35)", "#,##0.0"),
-        ("Terminal Value (Exit Multiple Method)", "=H23*$B$14", "#,##0.0"),
-        ("PV of Terminal Value", "=B40*G34", "#,##0.0"),
-        ("Implied Enterprise Value (EV)", "=B39+B41", "#,##0.0"),
-        ("Less: Total Debt", debt_val, "#,##0.0"),
-        ("Plus: Cash & Equivalents", cash_val, "#,##0.0"),
-        ("Implied Equity Value", "=B42-B43+B44", "#,##0.0"),
-        ("Shares Outstanding (Millions)", shares_outstanding_m, "#,##0.0"),
-        ("Implied Share Price", "=(B45/B46)*100" if is_jpy else "=B45/B46", f"{currency_symbol}#,##0.00"),
-        ("Current Share Price", current_price_raw, f"{currency_symbol}#,##0.00"),
-        ("Implied Premium / (Discount)", "=(B47-B48)/B48", "0.0%")
+        ("予測期間FCFFの現在価値累計", "=SUM(C35:G35)", "#,##0.0"),
+        ("ターミナルバリュー (マルチプル法)", "=H23*$B$14", "#,##0.0"),
+        ("ターミナルバリューの現在価値", "=B40*G34", "#,##0.0"),
+        ("事業価値 (EV)", "=B39+B41", "#,##0.0"),
+        ("控除：有利子負債合計", debt_val, "#,##0.0"),
+        ("加算：現金及び現金同等物", cash_val, "#,##0.0"),
+        ("株式価値", "=B42-B43+B44", "#,##0.0"),
+        ("発行済株式数 (百万株)", shares_outstanding_m, "#,##0.0"),
+        ("理論株価", "=(B45/B46)*100" if is_jpy else "=B45/B46", f"{currency_symbol}#,##0.00"),
+        ("現在株価", current_price_raw, f"{currency_symbol}#,##0.00"),
+        ("理論プレミアム / (ディスカウント)", "=(B47-B48)/B48", "0.0%")
     ]
     
     for idx, (label, val, fmt) in enumerate(bridge):
         row = 39 + idx
         ws.row_dimensions[row].height = 20
-        ws.cell(row=row, column=1, value=label).font = bold_data_font if "Price" in label or "EV" in label else data_font
+        ws.cell(row=row, column=1, value=label).font = bold_data_font if ("株価" in label or "EV" in label or "事業価値" in label or "株式価値" in label) else data_font
         cell_val = ws.cell(row=row, column=2, value=val)
         cell_val.font = data_font if str(val).startswith("=") else input_font
         cell_val.number_format = fmt
         cell_val.alignment = Alignment(horizontal="right")
         
-        if "Share Price" in label:
+        if "株価" in label:
             ws.cell(row=row, column=1).fill = highlight_fill
             cell_val.fill = highlight_fill
             cell_val.font = Font(name=font_family, size=11, bold=True, color="047857")
@@ -462,6 +463,7 @@ def create_dcf_model(ticker_data, outdir):
     os.makedirs(target_path, exist_ok=True)
     out_file = os.path.join(target_path, f"dcf_{ticker_data['ticker']}.xlsx")
     wb.save(out_file)
+    wb.close()
     logger.info(f"Successfully generated DCF model: {out_file}")
 
 def main():
