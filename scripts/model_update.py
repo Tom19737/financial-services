@@ -54,43 +54,86 @@ def main():
     new_ebitda = args.ebitda
     
     # 2. C-5 解決: 前提データのアップデート (破壊的変更を避けるためバックアップを作成)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    audit_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "changes": {}
+    }
+    
     sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
     if os.path.exists(sum_path) and new_ebitda is not None:
-        # バックアップ作成
-        shutil.copy2(sum_path, sum_path + ".bak")
         try:
             with open(sum_path, "r", encoding="utf-8") as f:
                 s = json.load(f)
-            s["ebitda"] = new_ebitda
-            with open(sum_path, "w", encoding="utf-8") as f:
-                json.dump(s, f, indent=2, ensure_ascii=False)
-            logger.info(f"Updated summary.json EBITDA with {new_ebitda} (backup created).")
+            old_ebitda = s.get("ebitda")
+            if old_ebitda != new_ebitda:
+                # バックアップ作成
+                shutil.copy2(sum_path, f"{sum_path}.{timestamp}.bak")
+                s["ebitda"] = new_ebitda
+                with open(sum_path, "w", encoding="utf-8") as f:
+                    json.dump(s, f, indent=2, ensure_ascii=False)
+                logger.info(f"Updated summary.json EBITDA from {old_ebitda} to {new_ebitda} (backup created: summary.json.{timestamp}.bak).")
+                audit_entry["changes"]["ebitda"] = {"prior": old_ebitda, "new": new_ebitda}
         except Exception as e:
             logger.error(f"Failed to update summary.json: {e}")
             
     inc_path = os.path.join(ticker_dir, "market_data", "annual_income_stmt.csv")
     if os.path.exists(inc_path) and (new_rev is not None or new_ebit is not None):
         import pandas as pd
-        # バックアップ作成
-        shutil.copy2(inc_path, inc_path + ".bak")
         try:
             df = pd.read_csv(inc_path, index_col=0)
             if len(df.columns) > 0:
                 latest_col = df.columns[0]
+                has_changes = False
+                
                 if new_rev is not None:
-                    # キーが存在するか確認して書き換える
                     target_keys = ["Total Revenue", "Operating Revenue", "Revenue"]
                     revenue_key = next((k for k in target_keys if k in df.index), None)
                     if revenue_key:
-                        df.loc[revenue_key, latest_col] = new_rev
+                        old_rev = float(df.loc[revenue_key, latest_col])
+                        if old_rev != new_rev:
+                            df.loc[revenue_key, latest_col] = new_rev
+                            has_changes = True
+                            audit_entry["changes"]["revenue"] = {"prior": old_rev, "new": new_rev}
+                            
                 if new_ebit is not None:
                     ebit_key = next((k for k in ["EBIT", "Operating Income"] if k in df.index), None)
                     if ebit_key:
-                        df.loc[ebit_key, latest_col] = new_ebit
-                df.to_csv(inc_path)
-                logger.info(f"Updated annual_income_stmt.csv with Revenue: {new_rev}, EBIT: {new_ebit} (backup created).")
+                        old_ebit = float(df.loc[ebit_key, latest_col])
+                        if old_ebit != new_ebit:
+                            df.loc[ebit_key, latest_col] = new_ebit
+                            has_changes = True
+                            audit_entry["changes"]["ebit"] = {"prior": old_ebit, "new": new_ebit}
+                
+                if has_changes:
+                    # バックアップ作成
+                    shutil.copy2(inc_path, f"{inc_path}.{timestamp}.bak")
+                    df.to_csv(inc_path)
+                    logger.info(f"Updated annual_income_stmt.csv (backup created: annual_income_stmt.csv.{timestamp}.bak).")
         except Exception as e:
             logger.error(f"Failed to update annual_income_stmt.csv: {e}")
+
+    # 監査履歴ファイル (update_history.json) の保存
+    if audit_entry["changes"]:
+        history_path = os.path.join(ticker_dir, "market_data", "update_history.json")
+        history = []
+        if os.path.exists(history_path):
+            try:
+                with open(history_path, "r", encoding="utf-8") as f:
+                    history = json.load(f)
+                    if not isinstance(history, list):
+                        history = []
+            except Exception as e:
+                logger.warning(f"Failed to read existing update history: {e}")
+        
+        history.append(audit_entry)
+        
+        try:
+            with open(history_path, "w", encoding="utf-8") as f:
+                json.dump(history, f, indent=2, ensure_ascii=False)
+            logger.info(f"Audit trail recorded in {history_path}")
+        except Exception as e:
+            logger.warning(f"Failed to write update history: {e}")
 
     logger.info("Updated raw market data with new guidance assumptions.")
     
@@ -149,9 +192,9 @@ def main():
 
 | 指標 | 修正後予測値 | 反映状況 |
 |---|---|---|
-| **売上高 (Revenue)** | {new_rev / 1e9 if new_rev else "N/A":,.1f} Bn | 反映済み |
-| **営業利益 (EBIT)** | {new_ebit / 1e9 if new_ebit else "N/A":,.1f} Bn | 反映済み |
-| **EBITDA** | {new_ebitda / 1e9 if new_ebitda else "N/A":,.1f} Bn | 反映済み |
+| **売上高 (Revenue)** | {f"{new_rev / 1e9:,.1f} Bn" if new_rev else "N/A"} | 反映済み |
+| **営業利益 (EBIT)** | {f"{new_ebit / 1e9:,.1f} Bn" if new_ebit else "N/A"} | 反映済み |
+| **EBITDA** | {f"{new_ebitda / 1e9:,.1f} Bn" if new_ebitda else "N/A"} | 反映済み |
 
 ---
 
