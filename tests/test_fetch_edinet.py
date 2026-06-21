@@ -9,6 +9,8 @@ import csv
 # 既存のscriptsフォルダをインポート元に追加
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "scripts"))
 import fetch_edinet
+import edinet_api
+import xbrl_parser
 
 class TestFetchEdinet(unittest.TestCase):
     def setUp(self):
@@ -44,7 +46,8 @@ class TestFetchEdinet(unittest.TestCase):
         with open(xbrl_path, "w", encoding="utf-8") as f:
             f.write(mock_xbrl_content)
             
-        data = fetch_edinet.parse_xbrl_file(xbrl_path)
+        # 分割された xbrl_parser から直接テストする
+        data = xbrl_parser.parse_xbrl_file(xbrl_path)
         
         # マッピング結果の検証
         self.assertIn("Total Revenue", data)
@@ -69,29 +72,68 @@ class TestFetchEdinet(unittest.TestCase):
         csv_path = os.path.join(self.temp_dir, "EdinetcodeDlInfo.csv")
         with open(csv_path, "w", encoding="cp932", newline="") as f:
             writer = csv.writer(f)
-            # ヘッダー説明など
             writer.writerow(["EDINET Code List Template"])
             writer.writerow([])
-            # ヘッダー
             writer.writerow(["ＥＤＩＮＥＴコード", "提出者種別", "提出者名", "提出者名（ヨミ）", "提出者名（英字）", "所在地", "提出者業種", "証券コード", "提出者法人番号"])
-            # データ行 (トヨタ自動車のダミー)
             writer.writerow(["E02166", "内国法人・上場", "トヨタ自動車株式会社", "トヨタジドウシャ", "TOYOTA MOTOR CORP", "豊田市", "輸送用機器", "72030", "1234567890123"])
-            # データ行 (ソニーのダミー)
             writer.writerow(["E02188", "内国法人・上場", "ソニーグループ株式会社", "ソニーグループ", "SONY GROUP CORP", "港区", "電気機器", "67580", "9876543210987"])
 
-        # 正常系: 7203
-        res = fetch_edinet.lookup_edinet_code(csv_path, "7203")
+        # 分割された edinet_api から直接テストする
+        res = edinet_api.lookup_edinet_code(csv_path, "7203")
         self.assertEqual(res["edinet_code"], "E02166")
         self.assertEqual(res["filer_name"], "トヨタ自動車株式会社")
         self.assertEqual(res["corporate_number"], "1234567890123")
         
-        # 正常系: 6758.T (末尾市場コード付き)
-        res = fetch_edinet.lookup_edinet_code(csv_path, "6758.T")
+        res = edinet_api.lookup_edinet_code(csv_path, "6758.T")
         self.assertEqual(res["edinet_code"], "E02188")
         
-        # 異常系: 存在しないティッカー
         with self.assertRaises(ValueError):
-            fetch_edinet.lookup_edinet_code(csv_path, "9999")
+            edinet_api.lookup_edinet_code(csv_path, "9999")
+
+    # デコレータの順序に対応させて、引数の順番を修正
+    # 上から順に complement, extract, download_zip, fetch_doc, lookup の順に引数に渡される
+    @patch('fetch_edinet.lookup_edinet_code')
+    @patch('fetch_edinet.fetch_document_list')
+    @patch('fetch_edinet.download_document_zip')
+    @patch('fetch_edinet.extract_financials_from_zip')
+    @patch('fetch_edinet.complement_with_yfinance')
+    @patch.dict(os.environ, {"EDINET_API_KEY": "dummy_api_key"})
+    def test_main_flow(self, mock_lookup, mock_fetch_doc_list, mock_download_zip, mock_extract, mock_complement):
+        mock_lookup.return_value = {
+            "edinet_code": "E01234",
+            "filer_name": "Test Company"
+        }
+        
+        mock_fetch_doc_list.return_value = {
+            "results": [
+                {
+                    "docID": "S100XXXX",
+                    "edinetCode": "E01234",
+                    "docTypeCode": "120",
+                    "docDescription": "有価証券報告書",
+                    "submitDateTime": "2026-06-20 15:00"
+                }
+            ]
+        }
+        
+        mock_download_zip.return_value = True
+        
+        mock_extract.return_value = {
+            "Total Revenue": {"2026-03-31": 1000.0},
+            "Operating Income": {"2026-03-31": 100.0},
+            "Reconciled Depreciation": {"2026-03-31": 20.0},
+            "Tax Provision": {"2026-03-31": 30.0},
+            "EBITDA": {"2026-03-31": 120.0},
+            "Total Assets": {"2026-03-31": 5000.0},
+            "Total Debt": {"2026-03-31": 1000.0},
+            "Cash Cash Equivalents And Short Term Investments": {"2026-03-31": 500.0},
+            "Operating Cash Flow": {"2026-03-31": 150.0},
+            "Capital Expenditure": {"2026-03-31": -80.0},
+            "Change In Working Capital": {"2026-03-31": 10.0}
+        }
+        
+        with patch('sys.argv', ['fetch_edinet.py', '7203', '--days', '1', '--outdir', self.temp_dir]):
+            fetch_edinet.main()
 
 if __name__ == "__main__":
     unittest.main()
