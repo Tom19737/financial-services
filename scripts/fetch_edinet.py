@@ -97,8 +97,8 @@ def complement_with_yfinance(ticker_str, target_dir):
         info_data = {}
         try:
             info_data = ticker.info
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to fetch info from yfinance: {e}")
             
         summary_path = os.path.join(target_dir, "summary.json")
         summary = {}
