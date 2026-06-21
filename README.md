@@ -28,7 +28,7 @@ Antigravity のワークスペース設定ディレクトリである `.agents/`
     └── ... (他16ワークフロー)
 ```
 
-各機能の解説 is [docs/feature-guide.md](docs/feature-guide.md) を参照してください。
+各機能の全体早見表は [docs/feature-guide.md](docs/feature-guide.md) を、各カスタムスキルの詳細な想定ユースケースや具体例をまとめた説明書は [docs/skills_guide.md](docs/skills_guide.md) をそれぞれ参照してください。
 
 ---
 
@@ -71,6 +71,9 @@ uv pip install -r requirements.txt   # もしくは pip install -r requirements.
 
 # 3. データの取得テスト
 .\.venv\Scripts\python scripts/fetch_yfinance.py 7203
+
+# 4. 財務前提の更新テスト（全モデル連動再生成とレポート出力）
+.\.venv\Scripts\python scripts/model_update.py 7203 --ebitda 10000000000000 --outdir ./out
 ```
 
 ---
@@ -90,7 +93,7 @@ uv pip install -r requirements.txt   # もしくは pip install -r requirements.
 - **[generate_models.py](scripts/generate_models.py)**: データベース（CSV）から動的に数値をパースし、DCFおよびCompsのExcelモデルを自動生成。
 - **[generate_3statement.py](scripts/generate_3statement.py)**: 金利の循環参照を解決し、反復計算メタデータを付与した3表（PL/BS/CF）連動Excelモデルを自動生成。
 - **[generate_lbo.py](scripts/generate_lbo.py)**: PE投資シミュレーション用LBOモデルを自動生成（Debt返済キャッシュスイープ、倍率別感度分析）。
-- **[model_update.py](scripts/model_update.py)**: 前提変更（ガイダンス上方修正等）を自動反映して全モデルを再生成し、Valuationへの影響比較レポートをMarkdownで出力。
+- **[model_update.py](scripts/model_update.py)**: 財務前提（ガイダンスや予測）の更新から全モデルの再生成までを一括自動化。引数から売上・EBIT・EBITDA等の最新予測値を反映する際、既存データのタイムスタンプ付き自動バックアップ、監査履歴（`update_history.json`）の記録、全子モデル（DCF/3表/LBO）への `--outdir` 引数の安全な中継伝播、目標株価の変動をまとめたMarkdown形式の「モデル更新レポート」出力を一連のフローとして実行します。
 
 ### ③ プレゼンテーション・資料自動化 (Pitch Book Automation)
 - **[generate_pitch.py](scripts/generate_pitch.py)**: `python-pptx` を用いて、投資ピッチプレゼンテーション資料 (`.pptx`) を新規自動生成。
