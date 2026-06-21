@@ -130,5 +130,176 @@ class TestFetchYFinance(unittest.TestCase):
                 fetch_yfinance.main()
             self.assertEqual(cm.exception.code, 1)
 
+    @patch('yfinance.Ticker')
+    def test_fetch_yfinance_with_specified_exchange_rate(self, mock_ticker):
+        # Tickerのモック設定（USD建ての日本企業）
+        mock_instance = MagicMock()
+        mock_ticker.return_value = mock_instance
+        
+        import pandas as pd
+        mock_instance.history.return_value = pd.DataFrame({
+            'Close': [100.0, 110.0]
+        }, index=pd.date_range(start='2026-06-19', periods=2))
+        
+        mock_instance.info = {
+            "currentPrice": 110.0,
+            "marketCap": 1100000,
+            "sharesOutstanding": 10000,
+            "currency": "USD",
+            "longName": "Test JP Company USD Reporting"
+        }
+        
+        mock_df = pd.DataFrame({
+            '2026-06-20': [10.0, 20.0]
+        }, index=['Revenue', 'NetIncome'])
+        
+        mock_instance.income_stmt = mock_df
+        mock_instance.quarterly_income_stmt = mock_df
+        mock_instance.balance_sheet = mock_df
+        mock_instance.quarterly_balance_sheet = mock_df
+        mock_instance.cashflow = mock_df
+        mock_instance.quarterly_cashflow = mock_df
+
+        # 手動で為替レート 150.0 を指定、ティッカーは日本株（.T で終わる）
+        with patch('sys.argv', ['fetch_yfinance.py', 'MSFT.T', '--outdir', './out/test_market_data', '--exchange-rate', '150.0']):
+            fetch_yfinance.main()
+            
+            target_dir = './out/test_market_data/MSFT.T_Test_JP_Company_USD_Reporting/market_data'
+            
+            # summary.jsonの検証
+            with open(os.path.join(target_dir, 'summary.json'), 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.assertEqual(data['ticker'], 'MSFT.T')
+                self.assertEqual(data['currency'], 'JPY')
+                self.assertEqual(data['original_currency'], 'USD')
+                self.assertEqual(data['exchange_rate_applied'], 150.0)
+                # 110.0 * 150.0 = 16500.0
+                self.assertEqual(data['current_price'], 16500.0)
+                # 1100000 * 150.0 = 165000000.0
+                self.assertEqual(data['market_cap'], 165000000.0)
+
+            # prices.csv の検証
+            df_prices = pd.read_csv(os.path.join(target_dir, 'prices.csv'))
+            # 最新の Close 値は 110.0 * 150.0 = 16500.0
+            self.assertEqual(df_prices['Close'].iloc[-1], 16500.0)
+
+            # 財務諸表CSVの検証
+            df_inc = pd.read_csv(os.path.join(target_dir, 'annual_income_stmt.csv'), index_col=0)
+            # 10.0 * 150.0 = 1500.0
+            self.assertEqual(df_inc.loc['Revenue', '2026-06-20'], 1500.0)
+
+    @patch('yfinance.Ticker')
+    def test_fetch_yfinance_with_auto_exchange_rate(self, mock_ticker):
+        import pandas as pd
+        
+        # モックの side_effect を定義して、USDJPY=X と対象銘柄の切り替えを行う
+        def side_effect(ticker_symbol):
+            mock_inst = MagicMock()
+            if ticker_symbol == 'USDJPY=X':
+                mock_inst.history.return_value = pd.DataFrame({
+                    'Close': [160.0]
+                }, index=pd.date_range(start='2026-06-20', periods=1))
+            else:
+                mock_inst.history.return_value = pd.DataFrame({
+                    'Close': [100.0, 110.0]
+                }, index=pd.date_range(start='2026-06-19', periods=2))
+                
+                mock_inst.info = {
+                    "currentPrice": 110.0,
+                    "marketCap": 1100000,
+                    "sharesOutstanding": 10000,
+                    "currency": "USD",
+                    "longName": "Test JP Company USD Reporting"
+                }
+                
+                mock_df = pd.DataFrame({
+                    '2026-06-20': [10.0, 20.0]
+                }, index=['Revenue', 'NetIncome'])
+                
+                mock_inst.income_stmt = mock_df
+                mock_inst.quarterly_income_stmt = mock_df
+                mock_inst.balance_sheet = mock_df
+                mock_inst.quarterly_balance_sheet = mock_df
+                mock_inst.cashflow = mock_df
+                mock_inst.quarterly_cashflow = mock_df
+            return mock_inst
+
+        mock_ticker.side_effect = side_effect
+
+        # 自動為替レート（USDJPY=X から 160.0 が取得される）、ティッカーは日本株（.T で終わる）
+        with patch('sys.argv', ['fetch_yfinance.py', 'MSFT.T', '--outdir', './out/test_market_data']):
+            fetch_yfinance.main()
+            
+            target_dir = './out/test_market_data/MSFT.T_Test_JP_Company_USD_Reporting/market_data'
+            
+            # summary.jsonの検証
+            with open(os.path.join(target_dir, 'summary.json'), 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.assertEqual(data['ticker'], 'MSFT.T')
+                self.assertEqual(data['currency'], 'JPY')
+                self.assertEqual(data['original_currency'], 'USD')
+                self.assertEqual(data['exchange_rate_applied'], 160.0)
+                # 110.0 * 160.0 = 17600.0
+                self.assertEqual(data['current_price'], 17600.0)
+
+            # 財務諸表CSVの検証
+            df_inc = pd.read_csv(os.path.join(target_dir, 'annual_income_stmt.csv'), index_col=0)
+            # 10.0 * 160.0 = 1600.0
+            self.assertEqual(df_inc.loc['Revenue', '2026-06-20'], 1600.0)
+
+    @patch('yfinance.Ticker')
+    def test_fetch_yfinance_us_stock_not_converted(self, mock_ticker):
+        # 米国株（.T で終わらない）は為替換算されないことを確認
+        mock_instance = MagicMock()
+        mock_ticker.return_value = mock_instance
+        
+        import pandas as pd
+        mock_instance.history.return_value = pd.DataFrame({
+            'Close': [100.0, 110.0]
+        }, index=pd.date_range(start='2026-06-19', periods=2))
+        
+        mock_instance.info = {
+            "currentPrice": 110.0,
+            "marketCap": 1100000,
+            "sharesOutstanding": 10000,
+            "currency": "USD",
+            "longName": "Test US Company"
+        }
+        
+        mock_df = pd.DataFrame({
+            '2026-06-20': [10.0, 20.0]
+        }, index=['Revenue', 'NetIncome'])
+        
+        mock_instance.income_stmt = mock_df
+        mock_instance.quarterly_income_stmt = mock_df
+        mock_instance.balance_sheet = mock_df
+        mock_instance.quarterly_balance_sheet = mock_df
+        mock_instance.cashflow = mock_df
+        mock_instance.quarterly_cashflow = mock_df
+
+        # 手動で為替レート 150.0 を指定するが、ティッカーは米国株（MSFT）
+        with patch('sys.argv', ['fetch_yfinance.py', 'MSFT', '--outdir', './out/test_market_data', '--exchange-rate', '150.0']):
+            fetch_yfinance.main()
+            
+            target_dir = './out/test_market_data/MSFT_Test_US_Company/market_data'
+            
+            # summary.jsonの検証（換算されていないこと）
+            with open(os.path.join(target_dir, 'summary.json'), 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self.assertEqual(data['ticker'], 'MSFT')
+                self.assertEqual(data['currency'], 'USD') # USDのまま
+                self.assertNotIn('original_currency', data)
+                self.assertNotIn('exchange_rate_applied', data)
+                self.assertEqual(data['current_price'], 110.0) # 110.0のまま
+                self.assertEqual(data['market_cap'], 1100000) # 換算なし
+
+            # prices.csv の検証
+            df_prices = pd.read_csv(os.path.join(target_dir, 'prices.csv'))
+            self.assertEqual(df_prices['Close'].iloc[-1], 110.0) # 110.0のまま
+
+            # 財務諸表CSVの検証
+            df_inc = pd.read_csv(os.path.join(target_dir, 'annual_income_stmt.csv'), index_col=0)
+            self.assertEqual(df_inc.loc['Revenue', '2026-06-20'], 10.0) # 10.0のまま
+
 if __name__ == '__main__':
     unittest.main()
