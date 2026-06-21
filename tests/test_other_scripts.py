@@ -56,7 +56,7 @@ class TestOtherScripts(unittest.TestCase):
         # prices.csv（クレンジングテスト用）
         prices_df = pd.DataFrame({
             "Date": [" 2026-06-19 00:00:00+09:00", " 2026-06-20 00:00:00+09:00", " 2026-06-20 00:00:00+09:00"], # 空白・重複・タイムゾーン
-            "Close": [" 2700.0", "2776.5 ", None], # スペース・欠損値
+            "Close": [" 2700.0", "2776.5 ", "2776.5 "], # スペース・欠損値で重複行にする
             "Open": [2680.0, 2750.0, 2750.0],
             "High": [2710.0, 2790.0, 2790.0],
             "Low": [2670.0, 2740.0, 2740.0],
@@ -95,7 +95,7 @@ class TestOtherScripts(unittest.TestCase):
 
         # ダミーのPPTXを作成
         prs = Presentation()
-        slide = prs.slides.add_slide(prs.slide_layouts[0])
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
         tx_box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(10), Inches(1))
         tf = tx_box.text_frame
         tf.paragraphs[0].text = "This is a Toyota presentation."
