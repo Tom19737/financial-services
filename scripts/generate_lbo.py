@@ -293,7 +293,7 @@ def build_lbo_model(ticker_data, ticker_dir):
         ("EBITDA", [eb_val, "=B27*1.08", "=C27*1.06", "=D27*1.05", "=E27*1.05"]),
         ("Less: Depreciation & Amortization", [da_val, "=B28*1.05", "=C28*1.05", "=D28*1.04", "=E28*1.04"]),
         ("EBIT", ["=B27-B28", "=C27-C28", "=D27-D28", "=E27-E28", "=F27-F28"]),
-        ("Less: Interest Expense (Senior + Mezz)", ["=B18*Inputs!$B$8+B19*Inputs!$B$9", "=C18*Inputs!$B$8+C19*Inputs!$B$9", "=D18*Inputs!$B$8+D19*Inputs!$B$9", "=E18*Inputs!$B$8+E19*Inputs!$B$9", "=F18*Inputs!$B$8+F19*Inputs!$B$9"]),
+        ("Less: Interest Expense (Senior + Mezz)", ["=B38*Inputs!$B$8+$B$19*Inputs!$B$9", "=C38*Inputs!$B$8+$B$19*Inputs!$B$9", "=D38*Inputs!$B$8+$B$19*Inputs!$B$9", "=E38*Inputs!$B$8+$B$19*Inputs!$B$9", "=F38*Inputs!$B$8+$B$19*Inputs!$B$9"]),
         ("Pretax Income", ["=B29-B30", "=C29-C30", "=D29-D30", "=E29-E30", "=F29-F30"]),
         ("Less: Taxes (30.6%)", ["=B31*Inputs!$B$10", "=C31*Inputs!$B$10", "=D31*Inputs!$B$10", "=E31*Inputs!$B$10", "=F31*Inputs!$B$10"]),
         ("Net Income", ["=B31-B32", "=C31-C32", "=D31-D32", "=E31-E32", "=F31-F32"]),
@@ -303,8 +303,8 @@ def build_lbo_model(ticker_data, ticker_dir):
         ("Free Cash Flow (to pay down debt)", ["=B33+B34+B35+B36", "=C33+C34+C35+C36", "=D33+D34+D35+D36", "=E33+E34+E35+E36", "=F33+F34+F35+F36"]),
         
         ("Senior Debt Balance - Beginning", ["=B18", "=B40", "=C40", "=D40", "=E40"]),
-        ("Less: Debt Repayment (FCF Sweep)", ["=MIN(B38, B39)", "=MIN(C38, C39)", "=MIN(D38, D39)", "=MIN(E38, E39)", "=MIN(F38, F39)"]),
-        ("Senior Debt Balance - Ending", ["=B39-B40", "=C39-C40", "=D39-D40", "=E39-E40", "=F39-F40"])
+        ("Less: Debt Repayment (FCF Sweep)", ["=MIN(B38, B37)", "=MIN(C38, C37)", "=MIN(D38, D37)", "=MIN(E38, E37)", "=MIN(F38, F37)"]),
+        ("Senior Debt Balance - Ending", ["=B38-B39", "=C38-C39", "=D38-D39", "=E38-E39", "=F38-F39"])
     ]
     
     for idx, (label, vals) in enumerate(cf_data):
@@ -373,6 +373,12 @@ def build_lbo_model(ticker_data, ticker_dir):
     target_path = os.path.join(ticker_dir, "analysis")
     os.makedirs(target_path, exist_ok=True)
     out_file = os.path.join(target_path, f"lbo_{ticker_data['ticker']}.xlsx")
+    
+    # 循環参照解決のための反復計算設定を有効化
+    from openpyxl.workbook.properties import CalcProperties
+    calc_pr = CalcProperties(iterate=True, refMode='A1', iterateCount=100, iterateDelta=0.001)
+    wb.properties.calcPr = calc_pr
+    
     wb.save(out_file)
     logger.info(f"Successfully generated LBO model: {out_file}")
 
