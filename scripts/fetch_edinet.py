@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 # 共通ユーティリティと新規分割モジュールのインポート
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from utils import setup_logging, normalize_ticker
+from utils import setup_logging, normalize_ticker, sanitize_folder_name
 from edinet_api import fetch_document_list, download_document_zip, lookup_edinet_code
 from xbrl_parser import extract_financials_from_zip
 
@@ -178,8 +178,7 @@ def main():
         
     if not target_docs:
         logger.warning(f"No annual or quarterly reports found for {filer_name} in the last {args.days} days.")
-        clean_name = re.sub(r'[^a-zA-Z0-9\s-]', '', filer_name)
-        clean_name = re.sub(r'[\s-]+', '_', clean_name).strip('_')
+        clean_name = sanitize_folder_name(filer_name)
         folder_name = f"{ticker_str}_{clean_name}"
         target_dir = os.path.join(args.outdir, folder_name, "market_data")
         os.makedirs(target_dir, exist_ok=True)
@@ -206,8 +205,7 @@ def main():
         logger.error("No financial data could be extracted from the document.")
         sys.exit(1)
         
-    clean_name = re.sub(r'[^a-zA-Z0-9\s-]', '', filer_name)
-    clean_name = re.sub(r'[\s-]+', '_', clean_name).strip('_')
+    clean_name = sanitize_folder_name(filer_name)
     folder_name = f"{ticker_str}_{clean_name}"
     target_dir = os.path.join(args.outdir, folder_name, "market_data")
     os.makedirs(target_dir, exist_ok=True)

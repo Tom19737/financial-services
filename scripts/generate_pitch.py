@@ -8,7 +8,7 @@ import sys
 import json
 import argparse
 from datetime import datetime
-from utils import find_ticker_dir, normalize_ticker, get_latest_financial_data, setup_logging
+from utils import find_ticker_dir, normalize_ticker, get_latest_financial_data, setup_logging, sanitize_folder_name
 
 logger = setup_logging("generate_pitch")
 
@@ -31,6 +31,15 @@ def main():
         logger.error(str(e))
         sys.exit(1)
         
+    summary_data = {}
+    sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
+    if os.path.exists(sum_path):
+        try:
+            with open(sum_path, "r", encoding="utf-8") as f:
+                summary_data = json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to read summary.json: {e}")
+            
     prs = Presentation()
     
     # プレゼンテーションサイズを 16:9 ワイドスクリーンに設定
@@ -158,18 +167,12 @@ def main():
     p_target.font.color.rgb = c_dark
     
     p_desc = tf_prop.add_paragraph()
-    if "285A" in ticker_str:
-        p_desc.text = "\nKioxia is the premier pure-play NAND flash manufacturer. As the market transitions rapidly from HDD to high-capacity Enterprise SSD (eSSD) driven by AI demands, Kioxia is poised for asymmetric earnings growth."
+    summary_desc = summary_data.get("description")
+    if summary_desc:
+        p_desc.text = f"\n{summary_desc}"
     else:
-        # summary.jsonのセクターや業界情報を用いた汎用説明
-        sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
-        sector = "Technology"
-        industry = "Semiconductors"
-        if os.path.exists(sum_path):
-            with open(sum_path, "r", encoding="utf-8") as f:
-                s = json.load(f)
-                sector = s.get("sector") or sector
-                industry = s.get("industry") or industry
+        sector = summary_data.get("sector") or "Technology"
+        industry = summary_data.get("industry") or "Semiconductors"
         p_desc.text = f"\n{ticker_data['name']} is a leading player in the {industry} industry ({sector} sector). Possesses solid financial performance with high growth opportunities and robust cash generation capabilities."
         
     p_desc.font.name = font_body
@@ -212,20 +215,11 @@ def main():
     widths = Inches(3.8)
     gap = Inches(0.4)
     
-    if "285A" in ticker_str:
-        pillars = [
-            ("1. Enterprise SSD Shift", "High-capacity eSSDs (64TB+) represent Kioxia's core margin expansion opportunity. AI servers require massive throughput, allowing Kioxia to capture high pricing premiums and drive EBITDA margin towards 44%+."),
-            ("2. BiCS 8 Process Lead", "Kioxia's 218-layer BiCS 8 technology focuses on practical cost efficiency and high manufacturing yields. This ensures the industry's lowest bit cost without over-investing in riskier 300+ layer architectures."),
-            ("3. WD Merger Potential", "The potential merger with Western Digital's memory division will create a日米 Memory Champion. This consolidation will enhance pricing power, eliminate redundant capex, and maximize shareholder value.")
-        ]
+    summary_pillars = summary_data.get("pillars")
+    if summary_pillars:
+        pillars = [(item[0], item[1]) for item in summary_pillars]
     else:
-        # 汎用的なインベストメントピラー
-        sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
-        industry = "Industry"
-        if os.path.exists(sum_path):
-            with open(sum_path, "r", encoding="utf-8") as f:
-                s = json.load(f)
-                industry = s.get("industry") or industry
+        industry = summary_data.get("industry") or "Industry"
         pillars = [
             ("1. Industry Leadership", f"{ticker_data['name']} has established a dominant market position in the {industry} field. Strong brand recognition and proprietary technologies act as deep competitive moats."),
             ("2. Operational Efficiency", "Superior supply chain management and manufacturing efficiencies generate high operating leverage. Continuous optimization helps maintain high EBITDA margins above peers."),
@@ -254,7 +248,7 @@ def main():
     target_path = os.path.join(ticker_dir, "analysis")
     os.makedirs(target_path, exist_ok=True)
     
-    clean_name = ticker_data["name"].replace(" ", "_").replace(".", "_").replace("&", "and")
+    clean_name = sanitize_folder_name(ticker_data["name"])
     today_str = datetime.now().strftime("%Y%m%d")
     out_file = os.path.join(target_path, f"{clean_name}_Pitch_{today_str}.pptx")
     

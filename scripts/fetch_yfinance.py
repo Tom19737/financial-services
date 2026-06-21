@@ -4,6 +4,9 @@ import argparse
 import json
 import yfinance as yf
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from utils import sanitize_folder_name
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Fetch stock data and financial statements using yfinance")
     parser.add_argument("ticker", type=str, help="Stock ticker (e.g. MSFT, 7203)")
@@ -65,9 +68,7 @@ def main():
             company_name = info_data.get("longName") or info_data.get("shortName")
             
         if company_name:
-            import re
-            clean_name = re.sub(r'[^a-zA-Z0-9\s-]', '', company_name)
-            clean_name = re.sub(r'[\s-]+', '_', clean_name).strip('_')
+            clean_name = sanitize_folder_name(company_name)
             folder_name = f"{ticker_str}_{clean_name}"
         else:
             folder_name = ticker_str

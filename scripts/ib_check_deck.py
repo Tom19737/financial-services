@@ -6,7 +6,7 @@ import argparse
 import sys
 import glob
 from datetime import datetime
-from utils import find_ticker_dir, normalize_ticker, setup_logging
+from utils import find_ticker_dir, normalize_ticker, setup_logging, sanitize_folder_name
 
 logger = setup_logging("ib_check_deck")
 
@@ -99,7 +99,7 @@ def main():
     
     # 3. 監査結果レポートの執筆
     today_str = datetime.now().strftime("%Y%m%d")
-    clean_name = company_name.replace(" ", "_").replace(".", "_").replace("&", "and")
+    clean_name = sanitize_folder_name(company_name)
     report_filename = f"{clean_name}_IB_Check_{today_str}.md"
     report_path = os.path.join(ticker_dir, "analysis", report_filename)
     

@@ -75,14 +75,16 @@ def main():
                 k, v = pair.split(":", 1)
                 replacements[k.strip()] = v.strip()
     else:
-        # デフォルトはキオクシアのデモ用マッピング（後方互換性用）
-        if "285A" in ticker_str:
-            replacements = {
-                "¥1,850.0 Bn": "¥1,920.0 Bn",
-                "¥820.0 Bn": "¥880.0 Bn",
-                "44.3%": "45.8%"
-            }
-        else:
+        import json
+        sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
+        if os.path.exists(sum_path):
+            try:
+                with open(sum_path, "r", encoding="utf-8") as f:
+                    s = json.load(f)
+                    replacements = s.get("deck_refresh_replacements") or {}
+            except Exception as e:
+                logger.warning(f"Failed to read summary.json for deck refresh: {e}")
+        if not replacements:
             logger.warning("No replacements specified. Slide content will not be modified.")
             
     if replacements:
