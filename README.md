@@ -55,7 +55,7 @@ Antigravity のワークスペース設定ディレクトリである `.agents/`
 
 1. **【第1優先】Pythonライブラリ「yfinance」による自動取得**
    - スクリプト: [fetch_yfinance.py](scripts/fetch_yfinance.py)
-   - 動作: 指定したティッカー（日本株は4桁のコードを渡せば自動的に `.T` を付加）の株価、ヒストリカルデータ、財務諸表（PL/BS/CFの年次・四半期）を取得し、`./out/market_data/` にCSV/JSONとして出力します。
+   - 動作: 指定したティッカー（日本株は4桁のコードを渡せば自動的に `.T` を付加）の株価、ヒストリカルデータ、財務諸表（PL/BS/CFの年次・四半期）を取得し、`./out/[Ticker]_[CompanyName]/market_data/` にCSV/JSONとして出力します。
 2. **【第2優先】有料データプロバイダ（MCP） / 手動Web検索**
    - 上記の自動化ツールが利用できない場合のフォールバック。
 
@@ -77,10 +77,13 @@ uv pip install -r requirements.txt   # もしくは pip install -r requirements.
 
 ## 5. 付属スクリプト・ツールセット
 
-本プロジェクトの [scripts/](scripts/) ディレクトリには、株式調査およびバリュエーションモデリングの一連の流れを自動化・デモ検証するための Python スクリプト群（全9ツール）が用意されています。
+本プロジェクトの [scripts/](scripts/) ディレクトリには、株式調査およびバリュエーションモデリングの一連の流れを自動化・デモ検証するための Python スクリプト・ツールセットが用意されています。
 
 ### ① データ収集 & 整形 (Data Pipeline)
 - **[fetch_yfinance.py](scripts/fetch_yfinance.py)**: yfinanceから財務諸表CSVおよび株価データを自動収集。
+- **[fetch_edinet.py](scripts/fetch_edinet.py)**: EDINET APIから有報・四半期報告書（XBRL）のダウンロードおよびパースを実行。
+- **[edinet_api.py](scripts/edinet_api.py)**: EDINET APIとの通信・書類リスト取得・ダウンロードを担当するモジュール。
+- **[xbrl_parser.py](scripts/xbrl_parser.py)**: ダウンロードされたXBRL zipファイルを解凍し、売上や営業利益などの財務データを抽出するパースモジュール。
 - **[clean_data.py](scripts/clean_data.py)**: `prices.csv` などの生データの重複排除、空白トリム、日付フォーマット標準化等のクレンジングを実行。
 
 ### ② 財務バリュエーションモデル生成 (Financial Modeling)
@@ -93,6 +96,9 @@ uv pip install -r requirements.txt   # もしくは pip install -r requirements.
 - **[generate_pitch.py](scripts/generate_pitch.py)**: `python-pptx` を用いて、投資ピッチプレゼンテーション資料 (`.pptx`) を新規自動生成。
 - **[deck_refresh.py](scripts/deck_refresh.py)**: 既存のスライド内の数値（売上・EBITDAマージン等）を最新モデルの値へ自動置換更新（ロールフォワード）。
 - **[ib_check_deck.py](scripts/ib_check_deck.py)**: スライド上の数値が財務データベースと一致しているかを突合監査し、不整合を検出する品質チェック（QC）レポートを出力。
+
+### ④ 共通ユーティリティ (Utility)
+- **[utils.py](scripts/utils.py)**: ティッカー正規化、ディレクトリ動的探索、財務データ統合ロード、Excel書式定義、サニタイズ処理等を一元化する共通モジュール。
 
 ---
 
