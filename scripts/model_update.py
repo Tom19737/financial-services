@@ -136,8 +136,8 @@ def main():
             if val_price is not None:
                 new_target_price = float(val_price)
             wb.close()
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to read target price from existing DCF model: {e}")
 
     unit_symbol = "円" if normalized.endswith(".T") else "USD"
     premium_diff = ((new_target_price - prior_target_price) / prior_target_price * 100) if prior_target_price else 0.0

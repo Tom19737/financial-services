@@ -148,8 +148,8 @@ def main():
             if val_price is not None:
                 implied_target = float(val_price)
             wb.close()
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to read target price from DCF model for pitch: {e}")
             
     upside = ((implied_target - current_price) / current_price * 100) if current_price else 0.0
     p_target.text = f"Target Price: {currency_symbol}{implied_target:,.1f}\nCurrent Price: {currency_symbol}{current_price:,.1f} (Upside {upside:+.1f}%)"
