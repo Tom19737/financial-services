@@ -140,10 +140,26 @@ class TestOtherScripts(unittest.TestCase):
         # model_update.main() 実行
         model_update.main()
 
-        # CSVのバックアップができているか確認
-        bak_file = os.path.join(self.market_data_dir, "annual_income_stmt.csv.bak")
-        self.assertTrue(os.path.exists(bak_file))
+        # CSVのバックアップができているか確認 (タイムスタンプ付き)
+        import glob
+        bak_files = glob.glob(os.path.join(self.market_data_dir, "annual_income_stmt.csv.*.bak"))
+        self.assertTrue(len(bak_files) > 0)
+
+        # 監査履歴ファイル (update_history.json) が作成されているか確認
+        history_file = os.path.join(self.market_data_dir, "update_history.json")
+        self.assertTrue(os.path.exists(history_file))
+        with open(history_file, "r", encoding="utf-8") as f:
+            history = json.load(f)
+            self.assertTrue(len(history) > 0)
+            self.assertIn("revenue", history[0]["changes"])
 
         # 値が更新されているか確認
         df = pd.read_csv(os.path.join(self.market_data_dir, "annual_income_stmt.csv"), index_col=0)
         self.assertEqual(df.loc["Total Revenue"].iloc[0], 50000.0)
+
+    def test_model_update_partial_none(self):
+        # 一部の値が None（指定なし）の場合のテスト
+        with patch('sys.argv', ['model_update.py', '7203', '--revenue', '60000', '--outdir', './out/test_other_data']):
+            model_update.main()
+        df = pd.read_csv(os.path.join(self.market_data_dir, "annual_income_stmt.csv"), index_col=0)
+        self.assertEqual(df.loc["Total Revenue"].iloc[0], 60000.0)
