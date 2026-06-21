@@ -6,7 +6,7 @@ import openpyxl
 import argparse
 import shutil
 from datetime import datetime
-from utils import find_ticker_dir, normalize_ticker, setup_logging
+from utils import find_ticker_dir, normalize_ticker, setup_logging, sanitize_folder_name
 
 logger = setup_logging("model_update")
 
@@ -49,11 +49,9 @@ def main():
         except Exception as e:
             logger.warning(f"Failed to read target price from existing DCF model: {e}")
 
-    # デフォルトの更新用数値（キオクシアのデモ用または渡された引数）
-    is_kioxia = "285A" in ticker_str
-    new_rev = args.revenue or (1850.0e9 if is_kioxia else None)
-    new_ebit = args.ebit or (480.0e9 if is_kioxia else None)
-    new_ebitda = args.ebitda or (820.0e9 if is_kioxia else None)
+    new_rev = args.revenue
+    new_ebit = args.ebit
+    new_ebitda = args.ebitda
     
     # 2. C-5 解決: 前提データのアップデート (破壊的変更を避けるためバックアップを作成)
     sum_path = os.path.join(ticker_dir, "market_data", "summary.json")
@@ -120,7 +118,7 @@ def main():
             sum_data = json.load(f)
             
     company_name = sum_data.get("long_name") or ticker_str
-    clean_name = company_name.replace(" ", "_").replace(".", "_").replace("&", "and")
+    clean_name = sanitize_folder_name(company_name)
     today_str = datetime.now().strftime("%Y%m%d")
     
     report_filename = f"{clean_name}_Model_Update_{today_str}.md"

@@ -168,3 +168,16 @@ class ExcelStyles:
         # 罫線
         self.thin_border_side = Side(style='thin', color='CBD5E1')
         self.thin_border = Border(left=self.thin_border_side, right=self.thin_border_side, top=self.thin_border_side, bottom=self.thin_border_side)
+
+def sanitize_folder_name(name):
+    """ファイル名やフォルダ名に使用できるように名前をサニタイズする"""
+    if not name:
+        return "Unknown"
+    import re
+    # & は and に置換
+    name = name.replace("&", "and")
+    # 英数字、スペース、ハイフン以外を削除
+    clean = re.sub(r'[^a-zA-Z0-9\s-]', '', name)
+    # スペースやハイフンをアンダースコアに変換し、前後のアンダースコアをトリム
+    clean = re.sub(r'[\s-]+', '_', clean).strip('_')
+    return clean
