@@ -639,7 +639,107 @@ def test_main_assumptions():
         journal_review.main()
         mock_ass.assert_called_once()
 
+def test_load_company_sector(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(tmp_path))
+    assert journal_review.load_company_sector("MSFT") == "Unknown"
+    
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    comp_dir = out_dir / "MSFT_Microsoft"
+    comp_dir.mkdir()
+    market_dir = comp_dir / "market_data"
+    market_dir.mkdir()
+    
+    summary_file = market_dir / "summary.json"
+    summary_file.write_text(json.dumps({"sector": "Technology"}), encoding="utf-8")
+    
+    assert journal_review.load_company_sector("MSFT") == "Technology"
+
+def test_analyze_trade_holding_periods():
+    trades = [
+        {"ticker": "MSFT", "side": "buy", "quantity": 100, "price": 100.0, "date": "2026-06-01"},
+        {"ticker": "MSFT", "side": "buy", "quantity": 50, "price": 120.0, "date": "2026-06-05"},
+        {"ticker": "MSFT", "side": "sell", "quantity": 120, "price": 130.0, "date": "2026-06-11"},
+    ]
+    
+    profit_trades, loss_trades, flat_trades, total_weighted_days, total_sold_qty, current_positions = \
+        journal_review.analyze_trade_holding_periods(trades)
+        
+    assert len(profit_trades) == 1
+    assert len(loss_trades) == 0
+    assert profit_trades[0]["holding_days"] == pytest.approx(9.333333333333334)
+    assert profit_trades[0]["pnl"] == 3200.0
+    assert total_sold_qty == 120
+    assert current_positions["MSFT"]["qty"] == 30
+    assert current_positions["MSFT"]["cost"] == 3600.0
+
+def test_handle_biases(mock_journal_env, capsys, monkeypatch):
+    index_data = {
+        "sessions": [
+            {
+                "session_id": "2026-06-05T10-00_285A.T_dcf",
+                "date": "2026-06-05",
+                "tickers": ["285A.T"],
+                "companies": ["Kioxia"],
+                "workflow": "dcf",
+                "decisions_path": "sessions/2026-06-05T10-00_285A.T_dcf_decisions.json"
+            }
+        ]
+    }
+    mock_journal_env["index_path"].write_text(json.dumps(index_data), encoding="utf-8")
+    
+    decisions_data = {
+        "decisions": [
+            {"id": "d001", "category": "conclusion", "topic": "Decision 1", "chosen": "Buy MSFT", "rationale": "r", "confidence": "high", "impact": "high"},
+            {"id": "d002", "category": "conclusion", "topic": "Decision 2", "chosen": "Strong Buy", "rationale": "r", "confidence": "high", "impact": "high"},
+            {"id": "d003", "category": "conclusion", "topic": "Decision 3", "chosen": "Buy more", "rationale": "r", "confidence": "high", "impact": "high"}
+        ]
+    }
+    dec_file = mock_journal_env["sessions_dir"] / "2026-06-05T10-00_285A.T_dcf_decisions.json"
+    dec_file.write_text(json.dumps(decisions_data), encoding="utf-8")
+    
+    trades_data = {
+        "trades": [
+            {"trade_id": "t001", "ticker": "MSFT", "company": "Microsoft", "side": "buy", "quantity": 10, "price": 100.0, "date": "2026-06-01", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t002", "ticker": "MSFT", "company": "Microsoft", "side": "sell", "quantity": 10, "price": 120.0, "date": "2026-06-02", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t003", "ticker": "GOOG", "company": "Google", "side": "buy", "quantity": 10, "price": 100.0, "date": "2026-06-01", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t004", "ticker": "GOOG", "company": "Google", "side": "sell", "quantity": 10, "price": 80.0, "date": "2026-06-06", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t005", "ticker": "MSFT", "company": "Microsoft", "side": "buy", "quantity": 5, "price": 100.0, "date": "2026-06-07", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"}
+        ]
+    }
+    mock_journal_env["trades_path"].write_text(json.dumps(trades_data), encoding="utf-8")
+    
+    comp_dir = mock_journal_env["journal_dir"].parent / "out" / "MSFT"
+    comp_dir.mkdir(parents=True, exist_ok=True)
+    (comp_dir / "market_data").mkdir(exist_ok=True)
+    with open(comp_dir / "market_data" / "summary.json", "w") as f:
+        json.dump({"sector": "Technology"}, f)
+        
+    comp_dir2 = mock_journal_env["journal_dir"].parent / "out" / "GOOG"
+    comp_dir2.mkdir(parents=True, exist_ok=True)
+    (comp_dir2 / "market_data").mkdir(exist_ok=True)
+    with open(comp_dir2 / "market_data" / "summary.json", "w") as f:
+        json.dump({"sector": "Technology"}, f)
+        
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(mock_journal_env["journal_dir"].parent))
+    
+    args = argparse_namespace()
+    journal_review.handle_biases(args)
+    captured = capsys.readouterr()
+    
+    assert "Investment Biases Analysis" in captured.out
+    assert "Optimism Bias detected" in captured.out
+    assert "Disposition Effect (Loss Aversion) detected" in captured.out
+    assert "Sector Concentration Bias detected" in captured.out
+
+def test_main_biases():
+    with mock.patch("journal_review.handle_biases") as mock_bias, \
+         mock.patch("sys.argv", ["journal_review.py", "biases"]):
+        journal_review.main()
+        mock_bias.assert_called_once()
+
 # ヘルパー
 def argparse_namespace(**kwargs):
     return mock.Mock(**kwargs)
+
 

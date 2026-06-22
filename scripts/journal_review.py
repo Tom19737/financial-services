@@ -720,6 +720,214 @@ def handle_assumptions(args):
             timeline = " -> ".join([item.get("chosen", "") for item in items_sorted])
             print(f"Timeline: {timeline}")
 
+def load_company_sector(ticker_symbol):
+    company_dir = find_company_data_dir(ticker_symbol)
+    if not company_dir:
+        return "Unknown"
+    summary_path = os.path.join(company_dir, "market_data", "summary.json")
+    if not os.path.exists(summary_path):
+        return "Unknown"
+    try:
+        with open(summary_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("sector") or "Unknown"
+    except Exception:
+        return "Unknown"
+
+def analyze_trade_holding_periods(trades):
+    by_ticker = {}
+    for t in trades:
+        ticker = t["ticker"]
+        if ticker not in by_ticker:
+            by_ticker[ticker] = []
+        by_ticker[ticker].append(t)
+        
+    profit_trades = []
+    loss_trades = []
+    flat_trades = []
+    total_weighted_days = 0.0
+    total_sold_qty = 0
+    
+    current_positions = {}
+    
+    for ticker, t_list in by_ticker.items():
+        t_list_sorted = sorted(t_list, key=lambda x: x.get("date", ""))
+        buy_queue = []
+        
+        for t in t_list_sorted:
+            side = t["side"].lower()
+            qty = int(t["quantity"])
+            price = float(t["price"])
+            t_date = parse_date(t["date"])
+            if not t_date:
+                continue
+                
+            if side == "buy":
+                buy_queue.append({"date": t_date, "qty": qty, "price": price})
+            elif side == "sell":
+                rem_qty = qty
+                weighted_days_sum = 0.0
+                cost_sum = 0.0
+                sold_qty_actual = 0
+                
+                while buy_queue and rem_qty > 0:
+                    buy_item = buy_queue[0]
+                    consume_qty = min(rem_qty, buy_item["qty"])
+                    
+                    days = (t_date - buy_item["date"]).days
+                    weighted_days_sum += days * consume_qty
+                    cost_sum += buy_item["price"] * consume_qty
+                    sold_qty_actual += consume_qty
+                    
+                    buy_item["qty"] -= consume_qty
+                    rem_qty -= consume_qty
+                    if buy_item["qty"] == 0:
+                        buy_queue.pop(0)
+                        
+                if sold_qty_actual > 0:
+                    avg_days = weighted_days_sum / sold_qty_actual
+                    revenue = price * sold_qty_actual
+                    pnl = revenue - cost_sum
+                    pnl_rate = pnl / cost_sum if cost_sum > 0 else 0.0
+                    
+                    trade_summary = {
+                        "holding_days": avg_days,
+                        "pnl_rate": pnl_rate,
+                        "pnl": pnl,
+                        "qty": sold_qty_actual
+                    }
+                    
+                    if pnl > 0:
+                        profit_trades.append(trade_summary)
+                    elif pnl < 0:
+                        loss_trades.append(trade_summary)
+                    else:
+                        flat_trades.append(trade_summary)
+                        
+                    total_weighted_days += weighted_days_sum
+                    total_sold_qty += sold_qty_actual
+                    
+        remaining_qty = sum(item["qty"] for item in buy_queue)
+        remaining_cost = sum(item["qty"] * item["price"] for item in buy_queue)
+        if remaining_qty > 0:
+            current_positions[ticker] = {
+                "qty": remaining_qty,
+                "cost": remaining_cost
+            }
+            
+    return profit_trades, loss_trades, flat_trades, total_weighted_days, total_sold_qty, current_positions
+
+def handle_biases(args):
+    index_data = load_index()
+    sessions = index_data.get("sessions", [])
+    
+    long_count = 0
+    short_count = 0
+    na_count = 0
+    
+    for s in sessions:
+        session_data = load_session_json(s['decisions_path'])
+        decisions = session_data.get("decisions", [])
+        for d in decisions:
+            direction = determine_direction(d)
+            if direction == "long":
+                long_count += 1
+            elif direction == "short":
+                short_count += 1
+            else:
+                na_count += 1
+                
+    total_decisions = long_count + short_count
+    buy_ratio = long_count / total_decisions if total_decisions > 0 else 0.0
+    
+    print("=== Investment Biases Analysis ===")
+    print("\n[1] Decision Bias (Optimism Analysis)")
+    print("-" * 50)
+    print(f"Total Directional Decisions: {total_decisions}")
+    print(f"  - Long (Buy) Decisions  : {long_count} ({buy_ratio * 100:.1f}%)")
+    print(f"  - Short (Sell) Decisions: {short_count} ({(1 - buy_ratio) * 100:.1f}%)")
+    
+    if total_decisions >= 3 and buy_ratio > 0.8:
+        print("\n>> [ALERT] Optimism Bias detected!")
+        print("   Almost all of your investment decisions are biased towards buying/bullish scenarios.")
+        print("   Make sure you are not ignoring downside risks or selling opportunities.")
+    else:
+        print("\n>> Decision bias is within normal range.")
+        
+    trades_data = load_trades()
+    trades = trades_data.get("trades", [])
+    
+    print("\n[2] Holding Period & Disposition Effect Analysis")
+    print("-" * 50)
+    
+    if not trades:
+        print("No trade history available for holding period analysis.")
+    else:
+        profit_trades, loss_trades, flat_trades, total_weighted_days, total_sold_qty, current_positions = analyze_trade_holding_periods(trades)
+        
+        profit_qty_sum = sum(t["qty"] for t in profit_trades)
+        loss_qty_sum = sum(t["qty"] for t in loss_trades)
+        
+        profit_avg_days = sum(t["holding_days"] * t["qty"] for t in profit_trades) / profit_qty_sum if profit_qty_sum > 0 else 0.0
+        loss_avg_days = sum(t["holding_days"] * t["qty"] for t in loss_trades) / loss_qty_sum if loss_qty_sum > 0 else 0.0
+        
+        profit_avg_rate = sum(t["pnl_rate"] * t["qty"] for t in profit_trades) / profit_qty_sum if profit_qty_sum > 0 else 0.0
+        loss_avg_rate = sum(t["pnl_rate"] * t["qty"] for t in loss_trades) / loss_qty_sum if loss_qty_sum > 0 else 0.0
+        
+        overall_avg_days = total_weighted_days / total_sold_qty if total_sold_qty > 0 else 0.0
+        
+        print(f"Total Sold Volume      : {total_sold_qty} shares")
+        print(f"Overall Average Holding: {overall_avg_days:.1f} days")
+        print(f"Realized Profit Trades : {len(profit_trades)} items (Vol: {profit_qty_sum} shares)")
+        print(f"  - Avg Holding Period : {profit_avg_days:.1f} days")
+        print(f"  - Avg Profit Rate    : {profit_avg_rate * 100:+.1f}%")
+        print(f"Realized Loss Trades   : {len(loss_trades)} items (Vol: {loss_qty_sum} shares)")
+        print(f"  - Avg Holding Period : {loss_avg_days:.1f} days")
+        print(f"  - Avg Loss Rate      : {loss_avg_rate * 100:+.1f}%")
+        
+        if loss_qty_sum > 0 and profit_qty_sum > 0 and loss_avg_days > profit_avg_days * 1.5:
+            ratio = loss_avg_days / profit_avg_days if profit_avg_days > 0 else 0.0
+            print("\n>> [ALERT] Disposition Effect (Loss Aversion) detected!")
+            print(f"   Your average loss-holding period is {ratio:.1f}x longer than profit-holding period.")
+            print("   You might be holding onto losing positions too long (塩漬け) while selling winners too quickly.")
+        else:
+            print("\n>> Holding period pattern is within normal range.")
+
+        print("\n[3] Sector Concentration Analysis")
+        print("-" * 50)
+        
+        if not current_positions:
+            print("No active positions held for sector analysis.")
+        else:
+            sector_costs = {}
+            total_portfolio_cost = 0.0
+            
+            for ticker, pos in current_positions.items():
+                sector = load_company_sector(ticker)
+                cost = pos["cost"]
+                sector_costs[sector] = sector_costs.get(sector, 0.0) + cost
+                total_portfolio_cost += cost
+                
+            print(f"{'Sector':<25} {'Cost Value (JPY)':<20} {'Weight'}")
+            print("-" * 55)
+            
+            max_sector = None
+            max_sector_ratio = 0.0
+            
+            for sector, cost in sorted(sector_costs.items(), key=lambda x: x[1], reverse=True):
+                ratio = cost / total_portfolio_cost if total_portfolio_cost > 0 else 0.0
+                if ratio > max_sector_ratio:
+                    max_sector_ratio = ratio
+                    max_sector = sector
+                print(f"{sector:<25} {cost:<20.2f} {ratio * 100:.1f}%")
+                
+            if total_portfolio_cost > 0 and max_sector_ratio > 0.5:
+                print(f"\n>> [ALERT] Sector Concentration Bias detected!")
+                print(f"   {max_sector_ratio * 100:.1f}% of your portfolio cost is concentrated in '{max_sector}'.")
+                print("   Consider diversifying to mitigate sector-specific macro risks.")
+            else:
+                print("\n>> Portfolio concentration is within normal range.")
+
 def main():
     parser = argparse.ArgumentParser(description="Review stock journal and trade history.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -744,6 +952,9 @@ def main():
     # assumptions コマンド
     parser_assumptions = subparsers.add_parser("assumptions", help="Verify assumptions variance against actual values")
     
+    # biases コマンド
+    parser_biases = subparsers.add_parser("biases", help="Analyze investment behavior biases")
+    
     args = parser.parse_args()
     
     if args.command == "history":
@@ -756,6 +967,8 @@ def main():
         handle_verify(args)
     elif args.command == "assumptions":
         handle_assumptions(args)
+    elif args.command == "biases":
+        handle_biases(args)
 
 if __name__ == "__main__":
     main()
