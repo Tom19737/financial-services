@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "JournalIndex",
+  "description": "Schema for the master index of all journal sessions and status.",
+  "type": "object",
+  "properties": {
+    "sessions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "tickers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "companies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "workflow": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": ["auto", "manual"]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "summary_path": {
+            "type": "string"
+          },
+          "decisions_path": {
+            "type": "string"
+          },
+          "artifact_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "session_id",
+          "date",
+          "tickers",
+          "companies",
+          "workflow",
+          "trigger",
+          "confidence",
+          "tags",
+          "summary_path",
+          "decisions_path",
+          "artifact_paths"
+        ]
+      }
+    },
+    "trade_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "last_updated": {
+      "type": "string"
+    }
+  },
+  "required": ["sessions", "trade_count", "last_updated"]
+}

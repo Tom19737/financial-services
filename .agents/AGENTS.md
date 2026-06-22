@@ -13,10 +13,10 @@
 ```text
 .agents/
 ├── AGENTS.md                   # 本共通ルール定義ファイル
-├── skills/                     # 実作業の本体（手順・知識）。23スキル
+├── skills/                     # 実作業の本体（手順・知識）。24スキル
 │   ├── [X]/SKILL.md            # 各スキルの詳細手順
 │   └── japan-equity-overrides/ # 日本株ローカライズ用共通オーバーライド
-└── workflows/                  # スラッシュコマンド `/名前`（Antigravity用ワークフロー19個）
+└── workflows/                  # スラッシュコマンド `/名前`（Antigravity用ワークフロー22個）
 ```
 
 ---
