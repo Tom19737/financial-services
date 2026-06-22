@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import sys
+import yfinance as yf
 
 # プロジェクトルートとパスの設定
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -338,6 +339,202 @@ def handle_report(args):
         print(f"Error: Failed to save monthly report: {e}", file=sys.stderr)
         sys.exit(1)
 
+def load_session_json(decisions_path):
+    full_path = os.path.join(JOURNAL_DIR, decisions_path)
+    if not os.path.exists(full_path):
+        return {}
+    try:
+        with open(full_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Warning: Failed to load session json from {decisions_path}: {e}", file=sys.stderr)
+        return {}
+
+def get_current_price(ticker_str):
+    ticker_str = ticker_str.strip()
+    if len(ticker_str) == 4 and ticker_str[0].isdigit() and ticker_str.isalnum():
+        ticker_str = f"{ticker_str}.T"
+    try:
+        ticker = yf.Ticker(ticker_str)
+        info_data = ticker.info
+        latest_price = info_data.get("currentPrice") or info_data.get("regularMarketPrice")
+        if latest_price is None:
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                latest_price = float(hist["Close"].iloc[-1])
+        return latest_price
+    except Exception as e:
+        print(f"Warning: Failed to fetch current price for {ticker_str}: {e}", file=sys.stderr)
+        return None
+
+def determine_direction(decision):
+    category = decision.get("category", "").lower()
+    topic = decision.get("topic", "").lower()
+    question = decision.get("question", "").lower()
+    chosen = str(decision.get("chosen", "")).lower()
+    
+    # ロング（強気）キーワード
+    long_keywords = ["買", "buy", "long", "強気", "bull", "追加", "エントリー", "intact"]
+    # ショート/エグジット（弱気・売却）キーワード
+    short_keywords = ["売", "sell", "short", "弱気", "bear", "損切", "利確", "エグジット", "broken"]
+    
+    is_long = False
+    is_short = False
+    
+    for kw in long_keywords:
+        if kw in chosen or kw in topic or kw in question:
+            is_long = True
+            break
+    if category == "conclusion" and not is_long:
+        is_long = True
+        
+    for kw in short_keywords:
+        if kw in chosen or kw in topic or kw in question:
+            is_short = True
+            is_long = False
+            break
+            
+    if is_long:
+        return "long"
+    elif is_short:
+        return "short"
+    return "N/A"
+
+def handle_verify(args):
+    index_data = load_index()
+    sessions = index_data.get("sessions", [])
+    if not sessions:
+        print("No sessions found in index.")
+        return
+
+    # 全意思決定を収集
+    all_decisions = []
+    tickers = set()
+    for s in sessions:
+        session_data = load_session_json(s['decisions_path'])
+        decisions = session_data.get("decisions", [])
+        price_at_session = session_data.get("price_at_session")
+        
+        session_tickers = s.get("tickers", [])
+        ticker = session_tickers[0] if session_tickers else "N/A"
+        if ticker != "N/A":
+            tickers.add(ticker)
+
+        for d in decisions:
+            d_copy = d.copy()
+            d_copy["session_id"] = s["session_id"]
+            d_copy["date"] = s["date"]
+            d_copy["ticker"] = ticker
+            d_copy["price_at_session"] = price_at_session
+            all_decisions.append(d_copy)
+
+    if not all_decisions:
+        print("No decisions found in any sessions.")
+        return
+
+    print("Fetching current market prices...")
+    current_prices = {}
+    for t in sorted(tickers):
+        price = get_current_price(t)
+        if price is not None:
+            current_prices[t] = price
+            print(f"  {t}: {price:.2f}")
+        else:
+            print(f"  {t}: Fetch failed")
+
+    print("\n=== Decision Performance Verification ===")
+    print(f"{'Date':<10} {'Ticker':<8} {'Topic':<15} {'Conf':<6} {'Dir':<5} {'Prev Px':<10} {'Curr Px':<10} {'Diff %':<8} {'Result':<8}")
+    print("-" * 90)
+
+    # 信頼度別の集計辞書
+    stats = {
+        "high": {"success": 0, "failed": 0, "flat": 0, "na": 0},
+        "medium": {"success": 0, "failed": 0, "flat": 0, "na": 0},
+        "low": {"success": 0, "failed": 0, "flat": 0, "na": 0}
+    }
+
+    for d in all_decisions:
+        ticker = d["ticker"]
+        prev_price = d["price_at_session"]
+        curr_price = current_prices.get(ticker) if ticker != "N/A" else None
+        
+        direction = determine_direction(d)
+        result = "N/A"
+        diff_pct_str = "-"
+        
+        if prev_price is not None and curr_price is not None and prev_price > 0:
+            diff_pct = ((curr_price - prev_price) / prev_price) * 100
+            diff_pct_str = f"{diff_pct:+.1f}%"
+            
+            if direction == "long":
+                if curr_price > prev_price:
+                    result = "Success"
+                elif curr_price < prev_price:
+                    result = "Failed"
+                else:
+                    result = "Flat"
+            elif direction == "short":
+                if curr_price < prev_price:
+                    result = "Success"
+                elif curr_price > prev_price:
+                    result = "Failed"
+                else:
+                    result = "Flat"
+            else:
+                result = "N/A"
+        else:
+            result = "N/A"
+            
+        conf = d.get("confidence", "medium").lower()
+        if conf not in stats:
+            conf = "medium"
+            
+        if result == "Success":
+            stats[conf]["success"] += 1
+        elif result == "Failed":
+            stats[conf]["failed"] += 1
+        elif result == "Flat":
+            stats[conf]["flat"] += 1
+        else:
+            stats[conf]["na"] += 1
+
+        prev_price_str = f"{prev_price:.2f}" if prev_price is not None else "-"
+        curr_price_str = f"{curr_price:.2f}" if curr_price is not None else "-"
+        topic = d.get("topic", "N/A")
+        if len(topic) > 15:
+            topic = topic[:12] + "..."
+            
+        print(f"{d['date']:<10} {ticker:<8} {topic:<15} {conf:<6} {direction:<5} {prev_price_str:<10} {curr_price_str:<10} {diff_pct_str:<8} {result:<8}")
+
+    print("\n=== Summary by Confidence ===")
+    print(f"{'Confidence':<12} {'Success':<8} {'Failed':<8} {'Flat':<8} {'N/A':<8} {'Accuracy':<8}")
+    print("-" * 55)
+    
+    total_success = 0
+    total_failed = 0
+    total_flat = 0
+    total_na = 0
+    
+    for level in ["high", "medium", "low"]:
+        s_count = stats[level]["success"]
+        f_count = stats[level]["failed"]
+        fl_count = stats[level]["flat"]
+        na_count = stats[level]["na"]
+        
+        total_success += s_count
+        total_failed += f_count
+        total_flat += fl_count
+        total_na += na_count
+        
+        denom = s_count + f_count
+        accuracy_str = f"{(s_count / denom) * 100:.1f}%" if denom > 0 else "-"
+        print(f"{level.capitalize():<12} {s_count:<8} {f_count:<8} {fl_count:<8} {na_count:<8} {accuracy_str:<8}")
+        
+    print("-" * 55)
+    total_denom = total_success + total_failed
+    total_accuracy_str = f"{(total_success / total_denom) * 100:.1f}%" if total_denom > 0 else "-"
+    print(f"{'Total':<12} {total_success:<8} {total_failed:<8} {total_flat:<8} {total_na:<8} {total_accuracy_str:<8}")
+
 def main():
     parser = argparse.ArgumentParser(description="Review stock journal and trade history.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -356,6 +553,9 @@ def main():
     parser_report = subparsers.add_parser("report", help="Generate monthly review report")
     parser_report.add_argument("--month", required=True, help="Target month (YYYY-MM)")
     
+    # verify コマンド
+    parser_verify = subparsers.add_parser("verify", help="Verify decisions performance against current prices")
+    
     args = parser.parse_args()
     
     if args.command == "history":
@@ -364,6 +564,8 @@ def main():
         handle_pnl(args)
     elif args.command == "report":
         handle_report(args)
+    elif args.command == "verify":
+        handle_verify(args)
 
 if __name__ == "__main__":
     main()

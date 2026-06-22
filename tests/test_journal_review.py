@@ -409,6 +409,123 @@ def test_main_report():
         args = mock_rep.call_args[0][0]
         assert args.month == "2026-06"
 
+def test_load_session_json(mock_journal_env):
+    data = journal_review.load_session_json("sessions/non_exist.json")
+    assert data == {}
+
+    dec_file = mock_journal_env["sessions_dir"] / "broken.json"
+    dec_file.write_text("{broken", encoding="utf-8")
+    data = journal_review.load_session_json("sessions/broken.json")
+    assert data == {}
+
+    expected = {"session_id": "test_s1", "price_at_session": 1000.0}
+    dec_file = mock_journal_env["sessions_dir"] / "test_s1.json"
+    dec_file.write_text(json.dumps(expected), encoding="utf-8")
+    data = journal_review.load_session_json("sessions/test_s1.json")
+    assert data == expected
+
+def test_get_current_price():
+    with mock.patch("yfinance.Ticker") as mock_ticker:
+        mock_instance = mock.Mock()
+        mock_instance.info = {"currentPrice": 150.0}
+        mock_ticker.return_value = mock_instance
+        
+        price = journal_review.get_current_price("MSFT")
+        assert price == 150.0
+
+        mock_instance.info = {"regularMarketPrice": 2500.0}
+        price = journal_review.get_current_price("7203")
+        mock_ticker.assert_called_with("7203.T")
+        assert price == 2500.0
+
+        mock_instance.info = {}
+        import pandas as pd
+        mock_hist = pd.DataFrame({"Close": [100.0]}, index=[pd.Timestamp("2026-06-22")])
+        mock_instance.history.return_value = mock_hist
+
+        
+        price = journal_review.get_current_price("285A.T")
+        assert price == 100.0
+
+        mock_instance.history.side_effect = Exception("error")
+        price = journal_review.get_current_price("TEST")
+        assert price is None
+
+def test_determine_direction():
+    d1 = {"category": "conclusion", "topic": "test", "chosen": "Hold"}
+    assert journal_review.determine_direction(d1) == "long"
+
+    d2 = {"category": "assumption", "topic": "buy target", "chosen": "1200"}
+    assert journal_review.determine_direction(d2) == "long"
+
+    d3 = {"category": "conclusion", "topic": "test", "chosen": "sell all"}
+    assert journal_review.determine_direction(d3) == "short"
+
+    d4 = {"category": "assumption", "topic": "WACC calculation", "chosen": "5.5%"}
+    assert journal_review.determine_direction(d4) == "N/A"
+
+def test_handle_verify(mock_journal_env, capsys):
+    index_data = {
+        "sessions": [
+            {
+                "session_id": "2026-06-05T10-00_285A.T_dcf",
+                "date": "2026-06-05",
+                "tickers": ["285A.T"],
+                "companies": ["Kioxia"],
+                "workflow": "dcf",
+                "summary_path": "sessions/2026-06-05T10-00_285A.T_dcf.md",
+                "decisions_path": "sessions/2026-06-05T10-00_285A.T_dcf_decisions.json"
+            }
+        ]
+    }
+    mock_journal_env["index_path"].write_text(json.dumps(index_data), encoding="utf-8")
+    
+    decisions_data = {
+        "session_id": "2026-06-05T10-00_285A.T_dcf",
+        "price_at_session": 1000.0,
+        "decisions": [
+            {
+                "id": "d001",
+                "category": "assumption",
+                "topic": "WACC",
+                "question": "WACC setting?",
+                "chosen": "5.0%",
+                "rationale": "Rationale",
+                "confidence": "high",
+                "impact": "high"
+            },
+            {
+                "id": "d002",
+                "category": "conclusion",
+                "topic": "Investment Decision",
+                "question": "Action?",
+                "chosen": "Buy Kioxia",
+                "rationale": "Strong demand",
+                "confidence": "high",
+                "impact": "high"
+            }
+        ]
+    }
+    dec_file = mock_journal_env["sessions_dir"] / "2026-06-05T10-00_285A.T_dcf_decisions.json"
+    dec_file.write_text(json.dumps(decisions_data), encoding="utf-8")
+
+    with mock.patch("journal_review.get_current_price", return_value=1200.0):
+        args = argparse_namespace()
+        journal_review.handle_verify(args)
+        captured = capsys.readouterr()
+        
+        assert "Decision Performance Verification" in captured.out
+        assert "285A.T" in captured.out
+        assert "Success" in captured.out
+        assert "+20.0%" in captured.out
+        assert "Accuracy" in captured.out
+
+def test_main_verify():
+    with mock.patch("journal_review.handle_verify") as mock_ver, \
+         mock.patch("sys.argv", ["journal_review.py", "verify"]):
+        journal_review.main()
+        mock_ver.assert_called_once()
+
 # ヘルパー
 def argparse_namespace(**kwargs):
     return mock.Mock(**kwargs)
