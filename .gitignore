@@ -27,7 +27,8 @@ Desktop.ini
 
 # 生成物(分析アウトプットの作業ディレクトリ。必要に応じて調整)
 output/
-out/
+out/*
+!out/_journal/
 .venv/
 __pycache__/
 *.pyc

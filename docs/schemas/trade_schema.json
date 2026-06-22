@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TradeHistory",
+  "description": "Schema for trading history.",
+  "type": "object",
+  "properties": {
+    "trades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trade_id": {
+            "type": "string"
+          },
+          "ticker": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "side": {
+            "type": "string",
+            "enum": ["buy", "sell"]
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "price": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string"
+          },
+          "fees": {
+            "type": "number",
+            "minimum": 0
+          },
+          "session_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "thesis_snapshot": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "trade_id",
+          "ticker",
+          "company",
+          "side",
+          "date",
+          "quantity",
+          "price",
+          "currency",
+          "fees",
+          "session_refs",
+          "thesis_snapshot"
+        ]
+      }
+    }
+  },
+  "required": ["trades"]
+}
