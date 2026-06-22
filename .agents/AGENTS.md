@@ -16,7 +16,7 @@
 ├── skills/                     # 実作業の本体（手順・知識）。24スキル
 │   ├── [X]/SKILL.md            # 各スキルの詳細手順
 │   └── japan-equity-overrides/ # 日本株ローカライズ用共通オーバーライド
-└── workflows/                  # スラッシュコマンド `/名前`（Antigravity用ワークフロー20個）
+└── workflows/                  # スラッシュコマンド `/名前`（Antigravity用ワークフロー21個）
 ```
 
 ---
