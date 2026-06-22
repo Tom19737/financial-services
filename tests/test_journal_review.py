@@ -409,6 +409,337 @@ def test_main_report():
         args = mock_rep.call_args[0][0]
         assert args.month == "2026-06"
 
+def test_load_session_json(mock_journal_env):
+    data = journal_review.load_session_json("sessions/non_exist.json")
+    assert data == {}
+
+    dec_file = mock_journal_env["sessions_dir"] / "broken.json"
+    dec_file.write_text("{broken", encoding="utf-8")
+    data = journal_review.load_session_json("sessions/broken.json")
+    assert data == {}
+
+    expected = {"session_id": "test_s1", "price_at_session": 1000.0}
+    dec_file = mock_journal_env["sessions_dir"] / "test_s1.json"
+    dec_file.write_text(json.dumps(expected), encoding="utf-8")
+    data = journal_review.load_session_json("sessions/test_s1.json")
+    assert data == expected
+
+def test_get_current_price():
+    with mock.patch("yfinance.Ticker") as mock_ticker:
+        mock_instance = mock.Mock()
+        mock_instance.info = {"currentPrice": 150.0}
+        mock_ticker.return_value = mock_instance
+        
+        price = journal_review.get_current_price("MSFT")
+        assert price == 150.0
+
+        mock_instance.info = {"regularMarketPrice": 2500.0}
+        price = journal_review.get_current_price("7203")
+        mock_ticker.assert_called_with("7203.T")
+        assert price == 2500.0
+
+        mock_instance.info = {}
+        import pandas as pd
+        mock_hist = pd.DataFrame({"Close": [100.0]}, index=[pd.Timestamp("2026-06-22")])
+        mock_instance.history.return_value = mock_hist
+
+        
+        price = journal_review.get_current_price("285A.T")
+        assert price == 100.0
+
+        mock_instance.history.side_effect = Exception("error")
+        price = journal_review.get_current_price("TEST")
+        assert price is None
+
+def test_determine_direction():
+    d1 = {"category": "conclusion", "topic": "test", "chosen": "Hold"}
+    assert journal_review.determine_direction(d1) == "long"
+
+    d2 = {"category": "assumption", "topic": "buy target", "chosen": "1200"}
+    assert journal_review.determine_direction(d2) == "long"
+
+    d3 = {"category": "conclusion", "topic": "test", "chosen": "sell all"}
+    assert journal_review.determine_direction(d3) == "short"
+
+    d4 = {"category": "assumption", "topic": "WACC calculation", "chosen": "5.5%"}
+    assert journal_review.determine_direction(d4) == "N/A"
+
+def test_handle_verify(mock_journal_env, capsys):
+    index_data = {
+        "sessions": [
+            {
+                "session_id": "2026-06-05T10-00_285A.T_dcf",
+                "date": "2026-06-05",
+                "tickers": ["285A.T"],
+                "companies": ["Kioxia"],
+                "workflow": "dcf",
+                "summary_path": "sessions/2026-06-05T10-00_285A.T_dcf.md",
+                "decisions_path": "sessions/2026-06-05T10-00_285A.T_dcf_decisions.json"
+            }
+        ]
+    }
+    mock_journal_env["index_path"].write_text(json.dumps(index_data), encoding="utf-8")
+    
+    decisions_data = {
+        "session_id": "2026-06-05T10-00_285A.T_dcf",
+        "price_at_session": 1000.0,
+        "decisions": [
+            {
+                "id": "d001",
+                "category": "assumption",
+                "topic": "WACC",
+                "question": "WACC setting?",
+                "chosen": "5.0%",
+                "rationale": "Rationale",
+                "confidence": "high",
+                "impact": "high"
+            },
+            {
+                "id": "d002",
+                "category": "conclusion",
+                "topic": "Investment Decision",
+                "question": "Action?",
+                "chosen": "Buy Kioxia",
+                "rationale": "Strong demand",
+                "confidence": "high",
+                "impact": "high"
+            }
+        ]
+    }
+    dec_file = mock_journal_env["sessions_dir"] / "2026-06-05T10-00_285A.T_dcf_decisions.json"
+    dec_file.write_text(json.dumps(decisions_data), encoding="utf-8")
+
+    with mock.patch("journal_review.get_current_price", return_value=1200.0):
+        args = argparse_namespace()
+        journal_review.handle_verify(args)
+        captured = capsys.readouterr()
+        
+        assert "Decision Performance Verification" in captured.out
+        assert "285A.T" in captured.out
+        assert "Success" in captured.out
+        assert "+20.0%" in captured.out
+        assert "Accuracy" in captured.out
+
+def test_main_verify():
+    with mock.patch("journal_review.handle_verify") as mock_ver, \
+         mock.patch("sys.argv", ["journal_review.py", "verify"]):
+        journal_review.main()
+        mock_ver.assert_called_once()
+
+def test_find_company_data_dir(tmp_path, monkeypatch):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    
+    comp_dir = out_dir / "285A.T_Kioxia_Holdings"
+    comp_dir.mkdir()
+    
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(tmp_path))
+    
+    dir_path = journal_review.find_company_data_dir("285A.T")
+    assert dir_path == str(comp_dir)
+    
+    dir_path = journal_review.find_company_data_dir("285A")
+    assert dir_path == str(comp_dir)
+
+    dir_path = journal_review.find_company_data_dir("9999.T")
+    assert dir_path is None
+
+def test_calculate_actual_metrics(tmp_path, monkeypatch):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    comp_dir = out_dir / "285A.T_Kioxia"
+    comp_dir.mkdir()
+    market_dir = comp_dir / "market_data"
+    market_dir.mkdir()
+    
+    csv_file = market_dir / "annual_income_stmt.csv"
+    
+    csv_content = """,2026-03-31,2025-03-31
+EBITDA,200.0,100.0
+Total Revenue,1000.0,800.0
+"""
+    csv_file.write_text(csv_content, encoding="utf-8")
+    
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(tmp_path))
+    
+    metrics = journal_review.calculate_actual_metrics("285A.T")
+    
+    assert metrics["revenue_growth"] == pytest.approx(0.25)
+    assert metrics["ebitda_margin"] == pytest.approx(0.20)
+
+def test_extract_numeric_percentage():
+    assert journal_review.extract_numeric_percentage("5.5%") == 0.055
+    assert journal_review.extract_numeric_percentage("WACC 6.0%") == 0.06
+    assert journal_review.extract_numeric_percentage("0.05") == 0.05
+    assert journal_review.extract_numeric_percentage("8") == 0.08
+    assert journal_review.extract_numeric_percentage("N/A") is None
+
+def test_handle_assumptions(mock_journal_env, capsys, monkeypatch):
+    index_data = {
+        "sessions": [
+            {
+                "session_id": "2026-06-05T10-00_285A.T_dcf",
+                "date": "2026-06-05",
+                "tickers": ["285A.T"],
+                "companies": ["Kioxia"],
+                "workflow": "dcf",
+                "decisions_path": "sessions/2026-06-05T10-00_285A.T_dcf_decisions.json"
+            }
+        ]
+    }
+    mock_journal_env["index_path"].write_text(json.dumps(index_data), encoding="utf-8")
+    
+    decisions_data = {
+        "decisions": [
+            {
+                "id": "d001",
+                "category": "assumption",
+                "topic": "WACC",
+                "question": "WACC setting?",
+                "chosen": "5.0%",
+                "rationale": "Rationale 1"
+            },
+            {
+                "id": "d002",
+                "category": "assumption",
+                "topic": "Revenue Growth",
+                "question": "Growth rate?",
+                "chosen": "8.0%",
+                "rationale": "Rationale 2"
+            }
+        ]
+    }
+    dec_file = mock_journal_env["sessions_dir"] / "2026-06-05T10-00_285A.T_dcf_decisions.json"
+    dec_file.write_text(json.dumps(decisions_data), encoding="utf-8")
+    
+    comp_dir = mock_journal_env["journal_dir"].parent / "out" / "285A.T_Kioxia"
+    comp_dir.mkdir(parents=True)
+    market_dir = comp_dir / "market_data"
+    market_dir.mkdir()
+    csv_file = market_dir / "annual_income_stmt.csv"
+    csv_file.write_text(",2026-03-31,2025-03-31\nTotal Revenue,1000.0,900.0\n", encoding="utf-8")
+    
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(mock_journal_env["journal_dir"].parent))
+    
+    args = argparse_namespace()
+    journal_review.handle_assumptions(args)
+    captured = capsys.readouterr()
+    
+    assert "Investment Assumptions and Variance Analysis" in captured.out
+    assert "WACC" in captured.out
+    assert "Revenue Growth" in captured.out
+    assert "5.0%" in captured.out
+    assert "8.0%" in captured.out
+    assert "11.1%" in captured.out
+    assert "-3.1%" in captured.out
+
+def test_main_assumptions():
+    with mock.patch("journal_review.handle_assumptions") as mock_ass, \
+         mock.patch("sys.argv", ["journal_review.py", "assumptions"]):
+        journal_review.main()
+        mock_ass.assert_called_once()
+
+def test_load_company_sector(tmp_path, monkeypatch):
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(tmp_path))
+    assert journal_review.load_company_sector("MSFT") == "Unknown"
+    
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    comp_dir = out_dir / "MSFT_Microsoft"
+    comp_dir.mkdir()
+    market_dir = comp_dir / "market_data"
+    market_dir.mkdir()
+    
+    summary_file = market_dir / "summary.json"
+    summary_file.write_text(json.dumps({"sector": "Technology"}), encoding="utf-8")
+    
+    assert journal_review.load_company_sector("MSFT") == "Technology"
+
+def test_analyze_trade_holding_periods():
+    trades = [
+        {"ticker": "MSFT", "side": "buy", "quantity": 100, "price": 100.0, "date": "2026-06-01"},
+        {"ticker": "MSFT", "side": "buy", "quantity": 50, "price": 120.0, "date": "2026-06-05"},
+        {"ticker": "MSFT", "side": "sell", "quantity": 120, "price": 130.0, "date": "2026-06-11"},
+    ]
+    
+    profit_trades, loss_trades, flat_trades, total_weighted_days, total_sold_qty, current_positions = \
+        journal_review.analyze_trade_holding_periods(trades)
+        
+    assert len(profit_trades) == 1
+    assert len(loss_trades) == 0
+    assert profit_trades[0]["holding_days"] == pytest.approx(9.333333333333334)
+    assert profit_trades[0]["pnl"] == 3200.0
+    assert total_sold_qty == 120
+    assert current_positions["MSFT"]["qty"] == 30
+    assert current_positions["MSFT"]["cost"] == 3600.0
+
+def test_handle_biases(mock_journal_env, capsys, monkeypatch):
+    index_data = {
+        "sessions": [
+            {
+                "session_id": "2026-06-05T10-00_285A.T_dcf",
+                "date": "2026-06-05",
+                "tickers": ["285A.T"],
+                "companies": ["Kioxia"],
+                "workflow": "dcf",
+                "decisions_path": "sessions/2026-06-05T10-00_285A.T_dcf_decisions.json"
+            }
+        ]
+    }
+    mock_journal_env["index_path"].write_text(json.dumps(index_data), encoding="utf-8")
+    
+    decisions_data = {
+        "decisions": [
+            {"id": "d001", "category": "conclusion", "topic": "Decision 1", "chosen": "Buy MSFT", "rationale": "r", "confidence": "high", "impact": "high"},
+            {"id": "d002", "category": "conclusion", "topic": "Decision 2", "chosen": "Strong Buy", "rationale": "r", "confidence": "high", "impact": "high"},
+            {"id": "d003", "category": "conclusion", "topic": "Decision 3", "chosen": "Buy more", "rationale": "r", "confidence": "high", "impact": "high"}
+        ]
+    }
+    dec_file = mock_journal_env["sessions_dir"] / "2026-06-05T10-00_285A.T_dcf_decisions.json"
+    dec_file.write_text(json.dumps(decisions_data), encoding="utf-8")
+    
+    trades_data = {
+        "trades": [
+            {"trade_id": "t001", "ticker": "MSFT", "company": "Microsoft", "side": "buy", "quantity": 10, "price": 100.0, "date": "2026-06-01", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t002", "ticker": "MSFT", "company": "Microsoft", "side": "sell", "quantity": 10, "price": 120.0, "date": "2026-06-02", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t003", "ticker": "GOOG", "company": "Google", "side": "buy", "quantity": 10, "price": 100.0, "date": "2026-06-01", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t004", "ticker": "GOOG", "company": "Google", "side": "sell", "quantity": 10, "price": 80.0, "date": "2026-06-06", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"},
+            {"trade_id": "t005", "ticker": "MSFT", "company": "Microsoft", "side": "buy", "quantity": 5, "price": 100.0, "date": "2026-06-07", "currency": "USD", "fees": 0.0, "session_refs": [], "thesis_snapshot": "test"}
+        ]
+    }
+    mock_journal_env["trades_path"].write_text(json.dumps(trades_data), encoding="utf-8")
+    
+    comp_dir = mock_journal_env["journal_dir"].parent / "out" / "MSFT"
+    comp_dir.mkdir(parents=True, exist_ok=True)
+    (comp_dir / "market_data").mkdir(exist_ok=True)
+    with open(comp_dir / "market_data" / "summary.json", "w") as f:
+        json.dump({"sector": "Technology"}, f)
+        
+    comp_dir2 = mock_journal_env["journal_dir"].parent / "out" / "GOOG"
+    comp_dir2.mkdir(parents=True, exist_ok=True)
+    (comp_dir2 / "market_data").mkdir(exist_ok=True)
+    with open(comp_dir2 / "market_data" / "summary.json", "w") as f:
+        json.dump({"sector": "Technology"}, f)
+        
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(mock_journal_env["journal_dir"].parent))
+    
+    args = argparse_namespace()
+    journal_review.handle_biases(args)
+    captured = capsys.readouterr()
+    
+    assert "Investment Biases Analysis" in captured.out
+    assert "Optimism Bias detected" in captured.out
+    assert "Disposition Effect (Loss Aversion) detected" in captured.out
+    assert "Sector Concentration Bias detected" in captured.out
+
+def test_main_biases():
+    with mock.patch("journal_review.handle_biases") as mock_bias, \
+         mock.patch("sys.argv", ["journal_review.py", "biases"]):
+        journal_review.main()
+        mock_bias.assert_called_once()
+
 # ヘルパー
 def argparse_namespace(**kwargs):
     return mock.Mock(**kwargs)
+
+
