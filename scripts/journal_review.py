@@ -4,6 +4,8 @@ import datetime
 import json
 import os
 import sys
+import re
+import csv
 import yfinance as yf
 
 # プロジェクトルートとパスの設定
@@ -535,6 +537,189 @@ def handle_verify(args):
     total_accuracy_str = f"{(total_success / total_denom) * 100:.1f}%" if total_denom > 0 else "-"
     print(f"{'Total':<12} {total_success:<8} {total_failed:<8} {total_flat:<8} {total_na:<8} {total_accuracy_str:<8}")
 
+def find_company_data_dir(ticker_symbol):
+    ticker_symbol = ticker_symbol.strip()
+    if len(ticker_symbol) == 4 and ticker_symbol[0].isdigit() and ticker_symbol.isalnum():
+        ticker_symbol = f"{ticker_symbol}.T"
+        
+    out_dir = os.path.join(PROJECT_ROOT, "out")
+    if not os.path.exists(out_dir):
+        return None
+    for item in os.listdir(out_dir):
+        item_path = os.path.join(out_dir, item)
+        if os.path.isdir(item_path):
+            if item.startswith(f"{ticker_symbol}_") or item == ticker_symbol:
+                return item_path
+    return None
+
+def calculate_actual_metrics(ticker_symbol):
+    metrics = {"revenue_growth": None, "ebitda_margin": None}
+    company_dir = find_company_data_dir(ticker_symbol)
+    if not company_dir:
+        return metrics
+        
+    csv_path = os.path.join(company_dir, "market_data", "annual_income_stmt.csv")
+    if not os.path.exists(csv_path):
+        return metrics
+        
+    try:
+        row_data = {}
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if not row:
+                    continue
+                row_name = row[0].strip().lower()
+                row_data[row_name] = row[1:]
+                
+        revenue_row = None
+        for name, val in row_data.items():
+            if "total revenue" in name or "operating revenue" in name:
+                revenue_row = val
+                break
+                
+        ebitda_row = None
+        for name, val in row_data.items():
+            if "ebitda" in name:
+                ebitda_row = val
+                break
+                
+        def parse_values(row_val):
+            parsed = []
+            for v in row_val:
+                v_clean = v.strip()
+                if v_clean:
+                    try:
+                        parsed.append(float(v_clean))
+                    except ValueError:
+                        parsed.append(None)
+                else:
+                    parsed.append(None)
+            return parsed
+            
+        if revenue_row:
+            rev_vals = parse_values(revenue_row)
+            valid_revs = [r for r in rev_vals if r is not None]
+            if len(valid_revs) >= 2:
+                metrics["revenue_growth"] = (valid_revs[0] - valid_revs[1]) / valid_revs[1]
+                
+        if ebitda_row and revenue_row:
+            ebitda_vals = parse_values(ebitda_row)
+            rev_vals = parse_values(revenue_row)
+            if ebitda_vals and rev_vals and ebitda_vals[0] is not None and rev_vals[0] is not None and rev_vals[0] > 0:
+                metrics["ebitda_margin"] = ebitda_vals[0] / rev_vals[0]
+                
+    except Exception as e:
+        print(f"Warning: Failed to parse financial statements for {ticker_symbol}: {e}", file=sys.stderr)
+        
+    return metrics
+
+def extract_numeric_percentage(chosen_str):
+    if not chosen_str:
+        return None
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*%", chosen_str)
+    if match:
+        return float(match.group(1)) / 100.0
+    match = re.search(r"([0-9]+(?:\.[0-9]+)?)", chosen_str)
+    if match:
+        val = float(match.group(1))
+        if val > 1.0:
+            return val / 100.0
+        return val
+    return None
+
+def handle_assumptions(args):
+    index_data = load_index()
+    sessions = index_data.get("sessions", [])
+    if not sessions:
+        print("No sessions found in index.")
+        return
+
+    all_assumptions = []
+    for s in sessions:
+        session_data = load_session_json(s['decisions_path'])
+        decisions = session_data.get("decisions", [])
+        
+        session_tickers = s.get("tickers", [])
+        ticker = session_tickers[0] if session_tickers else "N/A"
+        
+        for d in decisions:
+            if d.get("category", "").lower() == "assumption":
+                d_copy = d.copy()
+                d_copy["session_id"] = s["session_id"]
+                d_copy["date"] = s["date"]
+                d_copy["ticker"] = ticker
+                all_assumptions.append(d_copy)
+
+    if not all_assumptions:
+        print("No assumptions found in any sessions.")
+        return
+
+    grouped = {}
+    for a in all_assumptions:
+        ticker = a["ticker"]
+        topic = a.get("topic", "").lower()
+        question = a.get("question", "").lower()
+        
+        group_name = "Other"
+        if any(w in topic or w in question for w in ["wacc", "割引率", "資本コスト", "cost of capital"]):
+            group_name = "WACC"
+        elif any(w in topic or w in question for w in ["成長", "growth", "売上", "revenue"]):
+            group_name = "Revenue Growth"
+        elif any(w in topic or w in question for w in ["マージン", "margin", "利益率", "ebitda"]):
+            group_name = "Margin"
+            
+        key = (ticker, group_name)
+        if key not in grouped:
+            grouped[key] = []
+        grouped[key].append(a)
+
+    print("=== Investment Assumptions and Variance Analysis ===")
+    
+    for (ticker, group_name), items in sorted(grouped.items(), key=lambda x: (x[0][0], x[0][1])):
+        items_sorted = sorted(items, key=lambda x: x.get("date", ""))
+        
+        print(f"\n[{ticker}] Indicator: {group_name}")
+        print("-" * 80)
+        print(f"{'Date':<10} {'Topic':<15} {'Assumption':<12} {'Actual':<10} {'Variance':<10} {'Rationale'}")
+        print("-" * 80)
+        
+        actual_val = None
+        if ticker != "N/A":
+            actual_metrics = calculate_actual_metrics(ticker)
+            if group_name == "Revenue Growth":
+                actual_val = actual_metrics["revenue_growth"]
+            elif group_name == "Margin":
+                actual_val = actual_metrics["ebitda_margin"]
+        
+        for item in items_sorted:
+            chosen = item.get("chosen", "")
+            assumed_num = extract_numeric_percentage(chosen)
+            
+            actual_str = "-"
+            variance_str = "-"
+            
+            if actual_val is not None and assumed_num is not None:
+                actual_str = f"{actual_val * 100:.1f}%"
+                variance = (assumed_num - actual_val) * 100
+                variance_str = f"{variance:+.1f}%"
+            elif group_name in ["Revenue Growth", "Margin"] and actual_val is None:
+                actual_str = "N/A"
+                
+            topic = item.get("topic", "N/A")
+            if len(topic) > 15:
+                topic = topic[:12] + "..."
+                
+            rationale = item.get("rationale", "N/A").replace("\n", " ")
+            if len(rationale) > 30:
+                rationale = rationale[:27] + "..."
+                
+            print(f"{item['date']:<10} {topic:<15} {chosen:<12} {actual_str:<10} {variance_str:<10} {rationale}")
+            
+        if len(items_sorted) > 1:
+            timeline = " -> ".join([item.get("chosen", "") for item in items_sorted])
+            print(f"Timeline: {timeline}")
+
 def main():
     parser = argparse.ArgumentParser(description="Review stock journal and trade history.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -556,6 +741,9 @@ def main():
     # verify コマンド
     parser_verify = subparsers.add_parser("verify", help="Verify decisions performance against current prices")
     
+    # assumptions コマンド
+    parser_assumptions = subparsers.add_parser("assumptions", help="Verify assumptions variance against actual values")
+    
     args = parser.parse_args()
     
     if args.command == "history":
@@ -566,6 +754,8 @@ def main():
         handle_report(args)
     elif args.command == "verify":
         handle_verify(args)
+    elif args.command == "assumptions":
+        handle_assumptions(args)
 
 if __name__ == "__main__":
     main()

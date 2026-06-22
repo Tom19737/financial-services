@@ -526,6 +526,120 @@ def test_main_verify():
         journal_review.main()
         mock_ver.assert_called_once()
 
+def test_find_company_data_dir(tmp_path, monkeypatch):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    
+    comp_dir = out_dir / "285A.T_Kioxia_Holdings"
+    comp_dir.mkdir()
+    
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(tmp_path))
+    
+    dir_path = journal_review.find_company_data_dir("285A.T")
+    assert dir_path == str(comp_dir)
+    
+    dir_path = journal_review.find_company_data_dir("285A")
+    assert dir_path == str(comp_dir)
+
+    dir_path = journal_review.find_company_data_dir("9999.T")
+    assert dir_path is None
+
+def test_calculate_actual_metrics(tmp_path, monkeypatch):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    comp_dir = out_dir / "285A.T_Kioxia"
+    comp_dir.mkdir()
+    market_dir = comp_dir / "market_data"
+    market_dir.mkdir()
+    
+    csv_file = market_dir / "annual_income_stmt.csv"
+    
+    csv_content = """,2026-03-31,2025-03-31
+EBITDA,200.0,100.0
+Total Revenue,1000.0,800.0
+"""
+    csv_file.write_text(csv_content, encoding="utf-8")
+    
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(tmp_path))
+    
+    metrics = journal_review.calculate_actual_metrics("285A.T")
+    
+    assert metrics["revenue_growth"] == pytest.approx(0.25)
+    assert metrics["ebitda_margin"] == pytest.approx(0.20)
+
+def test_extract_numeric_percentage():
+    assert journal_review.extract_numeric_percentage("5.5%") == 0.055
+    assert journal_review.extract_numeric_percentage("WACC 6.0%") == 0.06
+    assert journal_review.extract_numeric_percentage("0.05") == 0.05
+    assert journal_review.extract_numeric_percentage("8") == 0.08
+    assert journal_review.extract_numeric_percentage("N/A") is None
+
+def test_handle_assumptions(mock_journal_env, capsys, monkeypatch):
+    index_data = {
+        "sessions": [
+            {
+                "session_id": "2026-06-05T10-00_285A.T_dcf",
+                "date": "2026-06-05",
+                "tickers": ["285A.T"],
+                "companies": ["Kioxia"],
+                "workflow": "dcf",
+                "decisions_path": "sessions/2026-06-05T10-00_285A.T_dcf_decisions.json"
+            }
+        ]
+    }
+    mock_journal_env["index_path"].write_text(json.dumps(index_data), encoding="utf-8")
+    
+    decisions_data = {
+        "decisions": [
+            {
+                "id": "d001",
+                "category": "assumption",
+                "topic": "WACC",
+                "question": "WACC setting?",
+                "chosen": "5.0%",
+                "rationale": "Rationale 1"
+            },
+            {
+                "id": "d002",
+                "category": "assumption",
+                "topic": "Revenue Growth",
+                "question": "Growth rate?",
+                "chosen": "8.0%",
+                "rationale": "Rationale 2"
+            }
+        ]
+    }
+    dec_file = mock_journal_env["sessions_dir"] / "2026-06-05T10-00_285A.T_dcf_decisions.json"
+    dec_file.write_text(json.dumps(decisions_data), encoding="utf-8")
+    
+    comp_dir = mock_journal_env["journal_dir"].parent / "out" / "285A.T_Kioxia"
+    comp_dir.mkdir(parents=True)
+    market_dir = comp_dir / "market_data"
+    market_dir.mkdir()
+    csv_file = market_dir / "annual_income_stmt.csv"
+    csv_file.write_text(",2026-03-31,2025-03-31\nTotal Revenue,1000.0,900.0\n", encoding="utf-8")
+    
+    monkeypatch.setattr(journal_review, "PROJECT_ROOT", str(mock_journal_env["journal_dir"].parent))
+    
+    args = argparse_namespace()
+    journal_review.handle_assumptions(args)
+    captured = capsys.readouterr()
+    
+    assert "Investment Assumptions and Variance Analysis" in captured.out
+    assert "WACC" in captured.out
+    assert "Revenue Growth" in captured.out
+    assert "5.0%" in captured.out
+    assert "8.0%" in captured.out
+    assert "11.1%" in captured.out
+    assert "-3.1%" in captured.out
+
+def test_main_assumptions():
+    with mock.patch("journal_review.handle_assumptions") as mock_ass, \
+         mock.patch("sys.argv", ["journal_review.py", "assumptions"]):
+        journal_review.main()
+        mock_ass.assert_called_once()
+
 # ヘルパー
 def argparse_namespace(**kwargs):
     return mock.Mock(**kwargs)
+
